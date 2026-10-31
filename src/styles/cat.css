@@ -8,7 +8,7 @@ body{margin:0}
 --wash-lavender:#e8e0f8;--wash-mint:#d3efe9;--wash-butter:#fbeab4;--wash-powder:#d6ebfa;
 --success:#256b4c;--danger:#b3261e;--danger-wash:#fbe0dc;--focus-ring:#b0343f;
 --glass-fill:#ffffffe6;--glass-fill-clear:#ffffff99;--glass-edge:#ffffffcc;
---font-display:"iCiel Queulat Uni","Be Vietnam Pro",system-ui,sans-serif;
+--font-display:"Coiny","Be Vietnam Pro",system-ui,sans-serif;
 --font-sans:"Be Vietnam Pro",system-ui,-apple-system,"Segoe UI",sans-serif;
 --space-1:4px;--space-2:8px;--space-3:12px;--space-4:16px;--space-5:24px;--space-6:32px;--space-7:48px;--space-8:64px;--space-9:96px;--space-10:128px;
 --radius-sm:8px;--radius-md:12px;--radius-card:20px;--radius-image:24px;--radius-pill:999px;
@@ -263,3 +263,7 @@ html{-webkit-text-size-adjust:100%}
 
 .detail-anchor{scroll-margin-top:16px}
 @media (max-width:900px){.detail-anchor{scroll-margin-top:128px}}
+
+/* Display font: Coiny (OFL, full Vietnamese) */
+.hxl,.hd,.hlg,.hh{font-weight:400}
+.hxl{line-height:1.05}

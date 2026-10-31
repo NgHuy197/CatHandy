@@ -257,7 +257,7 @@ export default function AdminCustomers() {
                     background: vals.cur.wash,
                     display: 'grid',
                     placeItems: 'center',
-                    font: "400 24px/30px 'iCiel Queulat Uni', sans-serif",
+                    font: "400 24px/30px 'Coiny', sans-serif",
                   }}
                 >
                   {vals.cur.initial}

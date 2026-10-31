@@ -90,7 +90,7 @@ export default function Account() {
                   background: '#fd9999',
                   display: 'grid',
                   placeItems: 'center',
-                  font: "400 24px/30px 'iCiel Queulat Uni', sans-serif",
+                  font: "400 24px/30px 'Coiny', sans-serif",
                 }}
               >
                 H

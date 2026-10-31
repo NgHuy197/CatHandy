@@ -875,7 +875,7 @@ export default function Main() {
               >
                 <span
                   style={{
-                    fontFamily: "'iCiel Queulat Uni', sans-serif",
+                    fontFamily: "'Coiny', sans-serif",
                     fontSize: '56px',
                     lineHeight: '56px',
                     color: '#fd9999',
