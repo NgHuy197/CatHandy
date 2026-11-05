@@ -13,6 +13,9 @@ export default function Checkout() {
     name: 'Huy',
     phone: '[SĐT đã lưu]',
     addr: '[Địa chỉ mặc định đã lưu]',
+    note: '',
+    sending: false,
+    error: '',
   });
 
   const navigate = useNavigate();
@@ -33,10 +36,16 @@ export default function Checkout() {
     onName: (e) => setState({ name: e.target.value }),
     onPhone: (e) => setState({ phone: e.target.value }),
     onAddr: (e) => setState({ addr: e.target.value }),
-    submit: (e) => {
+    onNote: (e) => setState({ note: e.target.value }),
+    submit: async (e) => {
       e.preventDefault();
-      placeOrder({ name: st.name, phone: st.phone, addr: st.addr });
-      navigate('/dat-hang/thanh-cong');
+      setState({ sending: true, error: '' });
+      try {
+        await placeOrder({ name: st.name, phone: st.phone, addr: st.addr, note: st.note });
+        navigate('/dat-hang/thanh-cong');
+      } catch (err) {
+        setState({ sending: false, error: err.message });
+      }
     },
     yes: true,
   };
@@ -194,10 +203,26 @@ export default function Checkout() {
                   id="n"
                   className="input"
                   rows="3"
+                  value={st.note}
+                  onChange={vals.onNote}
                   placeholder="Ví dụ: giao giờ hành chính, cần nhận trước ngày [ngày]"
                 />
               </div>
             </div>
+            {st.error ? (
+              <p
+                className="bsm"
+                role="alert"
+                style={{
+                  background: 'var(--danger-wash)',
+                  color: 'var(--danger)',
+                  borderRadius: '12px',
+                  padding: '12px 16px',
+                }}
+              >
+                {st.error}
+              </p>
+            ) : null}
             <div
               style={{
                 display: 'flex',
@@ -211,8 +236,8 @@ export default function Checkout() {
                 <Icon name="chevronLeft" />
                 Quay lại giỏ hàng
               </Link>
-              <button type="submit" className="btn btn-ink btn-lg" disabled={!cart.length}>
-                Gửi đơn cho shop
+              <button type="submit" className="btn btn-ink btn-lg" disabled={!cart.length || st.sending}>
+                {st.sending ? 'Đang gửi đơn...' : 'Gửi đơn cho shop'}
               </button>
             </div>
           </form>

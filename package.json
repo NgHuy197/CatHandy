@@ -6,15 +6,26 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "deploy": "npm run build && wrangler deploy",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate:local": "wrangler d1 migrations apply cat-handy --local",
+    "db:migrate:remote": "wrangler d1 migrations apply cat-handy --remote",
+    "db:seed:local": "wrangler d1 execute cat-handy --local --file=db/seed.sql",
+    "db:seed:remote": "wrangler d1 execute cat-handy --remote --file=db/seed.sql"
   },
   "dependencies": {
+    "drizzle-orm": "^0.45.4",
+    "hono": "^4.13.16",
     "react": "^19.3.1",
     "react-dom": "^19.3.1",
     "react-router-dom": "^7.18.5"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.67.0",
     "@vitejs/plugin-react": "^6.1.2",
-    "vite": "^8.3.5"
+    "drizzle-kit": "^0.31.11",
+    "vite": "^8.3.5",
+    "wrangler": "^4.158.0"
   }
 }

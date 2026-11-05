@@ -31,7 +31,6 @@ const SAMPLE = {
     },
   ],
   lastOrder: null,
-  orderCount: 0,
 };
 
 function load() {
@@ -86,14 +85,27 @@ export function removeItem(id) {
   update({ items: data.items.filter((it) => it.id !== id) });
 }
 
-// No order API yet: the order only lives in this browser. Replace with a POST when the backend exists.
-export function placeOrder(customer) {
-  const orderCount = data.orderCount + 1;
+// Saves the order in D1 through the Worker (worker/index.js), which sets the code and the final total.
+// Throws with a message to show the visitor when the order is refused or the network fails.
+export async function placeOrder(customer) {
+  let res;
+  try {
+    res = await fetch('/api/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ customer, items: data.items }),
+    });
+  } catch {
+    throw new Error('Không kết nối được tới shop, bạn kiểm tra mạng rồi thử lại nhé.');
+  }
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || 'Không gửi được đơn, bạn thử lại sau nhé.');
+
   const lastOrder = {
-    code: 'CH-' + String(orderCount).padStart(4, '0'),
+    code: body.code,
     customer,
-    items: data.items.map((it) => `${it.title} (${it.isCustom ? 'chibi tự thiết kế' : 'có sẵn'})`),
-    total: cartTotal(data.items),
+    items: body.items.map((it) => `${it.title} (${it.isCustom ? 'chibi tự thiết kế' : 'có sẵn'})`),
+    total: body.total,
   };
-  update({ items: [], lastOrder, orderCount });
+  update({ items: [], lastOrder });
 }

@@ -1,0 +1,20 @@
+-- Catalog from the design's sample data. Safe to run again: existing rows are skipped.
+INSERT OR IGNORE INTO products (slug, title, sub, category, material, price, ready, wash, chibi_a, chibi_b) VALUES
+  ('cap-doi-ao-dai', 'Cặp đôi áo dài', 'Hộp gỗ chibi, 2 nhân vật', 'go', 'Gỗ', 389000, 1, '#fddede',
+    '{"hair":"long","outfitColor":"#c9484f"}', '{"skin":"#e8b896","outfitColor":"#34405a"}'),
+  ('chibi-vest-xanh', 'Chibi vest xanh', 'Hộp mica chibi, 1 nhân vật', 'nam', 'Mica', 289000, 1, '#d6ebfa',
+    '{"skin":"#e8b896","outfit":"vest","outfitColor":"#34405a","glasses":true}', NULL),
+  ('be-hoa-tang-me', 'Bé hoa tặng mẹ', 'Hộp gỗ chibi, 1 nhân vật', 'go', 'Gỗ', 259000, 1, '#e8e0f8',
+    '{"hair":"bun","outfit":"shirt","outfitColor":"#cbbdf0","accessory":"bouquet"}', NULL),
+  ('bo-co-dau-chu-re-mini', 'Bộ cô dâu chú rể mini', 'Quà cưới, 2 nhân vật', 'cuoi', 'Gỗ', 549000, 1, '#fbeab4',
+    '{"hair":"long","outfit":"wedding","outfitColor":"#fffaf0"}', '{"outfit":"vest","outfitColor":"#3b2f3e"}'),
+  ('chibi-mica-ao-dai', 'Chibi mica áo dài', 'Hộp mica chibi, 1 nhân vật', 'mica', 'Mica', 329000, 0, '#d3efe9',
+    '{"hair":"bob","outfitColor":"#9ccbee","accessory":"bow"}', NULL),
+  ('cap-doi-mica-trong', 'Cặp đôi mica trong', 'Hộp mica chibi, 2 nhân vật', 'mica', 'Mica', 449000, 0, '#d6ebfa',
+    '{"hair":"long","outfit":"shirt","outfitColor":"#fd9999"}', '{"skin":"#fde3d0","outfit":"shirt","outfitColor":"#9fd6c4","glasses":true}'),
+  ('bo-qua-cuoi-cao-cap', 'Bộ quà cưới cao cấp', 'Hộp quà cưới, 2 nhân vật', 'cuoi', 'Gỗ', 689000, 0, '#fddede',
+    '{"hair":"bun","outfit":"wedding","outfitColor":"#fffaf0","accessory":"bouquet"}', '{"outfit":"vest","outfitColor":"#34405a"}'),
+  ('chibi-rau-kinh', 'Chibi râu kính', 'Hộp gỗ chibi, 1 nhân vật', 'nam', 'Gỗ', 299000, 0, '#e8e0f8',
+    '{"skin":"#c58c63","outfit":"shirt","outfitColor":"#f2d27a","beard":true,"glasses":true,"face":"laugh"}', NULL),
+  ('hoa-cai-toc-chibi', 'Hoa cài tóc chibi', 'Phụ kiện quà tặng', 'phukien', 'Khác', 59000, 1, '#fbeab4',
+    '{"hair":"long","hairColor":"#5a3a2a","outfit":"shirt","accessory":"flower"}', NULL);
