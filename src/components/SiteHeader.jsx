@@ -3,6 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import Icon from './Icon';
 import css from '../lib/css';
 import { cartCount, useCart } from '../lib/cart';
+import { useAuth } from '../lib/auth';
 
 export default function SiteHeader(props) {
   const count = cartCount(useCart().items);
@@ -13,7 +14,9 @@ export default function SiteHeader(props) {
   const off = dark ? 'background:transparent;color:#ffffff;' : 'background:transparent;color:#2a1f2d;';
   const hot = 'background:#fddede;color:#2a1f2d;';
   const mk = (id, label, href, hotItem) => ({ label, href, hot: hotItem, style: hotItem ? hot : a === id ? on : off });
-  const signedIn = props.signedIn === true || props.signedIn === 'true';
+  const { user } = useAuth();
+  const signedIn = !!user;
+  const accountLabel = user ? 'Tài khoản của ' + (user.name || user.email) : '';
   const vals = {
     links: [
       mk('home', 'Trang chủ', '/', false),
@@ -25,7 +28,7 @@ export default function SiteHeader(props) {
       { label: 'Tìm kiếm', href: '/san-pham', icon: 'search' },
       { label: 'Yêu thích', href: '/tai-khoan', icon: 'heart' },
       signedIn
-        ? { label: 'Tài khoản của Huy', href: '/tai-khoan', icon: 'users' }
+        ? { label: accountLabel, href: '/tai-khoan', icon: 'users' }
         : { label: 'Đăng nhập', href: '/dang-nhap', icon: 'users' },
     ],
     glassCls: 'nav-dark-glass',
@@ -123,10 +126,10 @@ export default function SiteHeader(props) {
               <Link
                 to="/tai-khoan"
                 className="btn btn-pink btn-icon nav-wide"
-                aria-label="Tài khoản của Huy"
+                aria-label={accountLabel}
                 style={{ marginLeft: '4px' }}
               >
-                H
+                {(user.name || user.email).trim().charAt(0).toUpperCase()}
               </Link>
             </>
           ) : null}

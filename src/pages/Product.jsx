@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { useParams, Link, useNavigate } from 'react-router-dom';
 import SiteHeader from '../components/SiteHeader';
 import Chibi from '../components/Chibi';
 import SiteFooter from '../components/SiteFooter';
@@ -6,64 +6,160 @@ import Icon from '../components/Icon';
 import useMergedState from '../lib/useMergedState';
 import { formatPrice } from '../lib/chibi';
 import { addReadyItem } from '../lib/cart';
+import { api, upload, useApi } from '../lib/api';
+import { useAuth } from '../lib/auth';
+import { CATEGORY_LABELS, toCard } from '../lib/products';
+import { toggleWish, useWishlist } from '../lib/wishlist';
+import { formatDate } from '../../shared/format';
+
+const thumbStyle = (on, bg) => ({
+  aspectRatio: '1 / 1',
+  borderRadius: '16px',
+  border: on ? '2px solid #2a1f2d' : '1px solid #e3d8ca',
+  background: bg,
+  cursor: 'pointer',
+  padding: '0',
+  overflow: 'hidden',
+});
+const fill = { width: '100%', height: '100%', objectFit: 'cover', display: 'block' };
+const errorBox = { background: 'var(--danger-wash)', color: 'var(--danger)', borderRadius: '12px', padding: '12px 16px' };
+
+function Stars({ value }) {
+  return (
+    <div style={{ display: 'flex', gap: '2px' }} aria-hidden="true">
+      {[1, 2, 3, 4, 5].map((n) => (
+        <Icon key={n} name="star" className="star" style={n <= Math.round(value) ? undefined : { opacity: 0.25 }} />
+      ))}
+    </div>
+  );
+}
 
 export default function Product() {
-  const [state, setState] = useMergedState({ color: '#c9484f', size: 'm', qty: 1 });
+  const { slug } = useParams();
+  const navigate = useNavigate();
+  const { data, error, setData } = useApi('/products/' + slug);
+  const { user } = useAuth();
+  const wish = useWishlist();
+  const [state, setState] = useMergedState({
+    color: null,
+    size: null,
+    qty: 1,
+    slide: 0,
+    added: false,
+    rating: 5,
+    body: '',
+    photos: [],
+    reviewBusy: false,
+    reviewError: '',
+  });
 
+  if (!data) {
+    return (
+      <div className="cat">
+        <SiteHeader active="shop" />
+        <main className="wrap" style={{ paddingBlock: '48px 96px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p className="bsm mut" role={error ? 'alert' : 'status'}>
+            {error ? (error.status === 404 ? 'Không tìm thấy sản phẩm này.' : error.message) : 'Đang tải sản phẩm...'}
+          </p>
+          {error ? (
+            <Link to="/san-pham" className="btn btn-line" style={{ alignSelf: 'flex-start' }}>
+              Xem các sản phẩm khác
+            </Link>
+          ) : null}
+        </main>
+        <SiteFooter />
+      </div>
+    );
+  }
+
+  const p = toCard(data);
   const st = state;
-  const COL = [
-    ['#c9484f', 'Đỏ'],
-    ['#fd9999', 'Hồng'],
-    ['#9ccbee', 'Xanh nhạt'],
-    ['#fffaf0', 'Kem'],
-  ];
-  const SZ = [
-    ['s', 'Nhỏ'],
-    ['m', 'Vừa'],
-  ];
-  const price = (st.size === 'm' ? 389000 : 349000) * st.qty;
-  const dress = st.color;
-  const base = {
-    skin: '#f7d9c4',
-    hairColor: '#2f2430',
-    outfitColor: '#fd9999',
-    hair: 'short',
-    face: 'smile',
-    outfit: 'aodai',
-    accessory: 'none',
-    glasses: false,
-    beard: false,
-  };
+  const colors = p.variants?.colors || [];
+  const sizes = p.variants?.sizes || [];
+  const color = colors.find((c) => c.value === st.color) || colors[0];
+  const size = sizes.find((s) => s.code === st.size) || sizes[0];
+  const unit = size ? size.price : p.price;
+  const pa = color ? { ...p.a, outfitColor: color.value } : p.a;
+  // Slide 0 is the chibi drawing; uploaded photos and videos follow.
+  const slides = [{ kind: 'chibi' }, ...p.imageUrls.map((url) => ({ kind: /\.mp4$/i.test(url) ? 'video' : 'image', url }))];
+  const slide = slides[st.slide] || slides[0];
+  const wished = wish.has(p.slug);
+  const variantLabel = [color && 'màu ' + color.label.toLowerCase(), size && 'cỡ ' + size.label.toLowerCase()]
+    .filter(Boolean)
+    .join(', ');
+
   const vals = {
-    pa: Object.assign({}, base, { hair: 'long', outfitColor: dress }),
-    pb: Object.assign({}, base, { skin: '#e8b896', outfitColor: '#34405a', face: 'wink' }),
-    colors: COL.map((o) => ({
-      label: o[1],
-      color: o[0],
-      on: st.color === o[0],
-      cls: st.color === o[0] ? 'tile on' : 'tile',
-      pick: () => setState({ color: o[0] }),
+    pa,
+    pb: p.b,
+    colors: colors.map((o) => ({
+      label: o.label,
+      color: o.value,
+      on: color?.value === o.value,
+      cls: color?.value === o.value ? 'tile on' : 'tile',
+      pick: () => setState({ color: o.value, added: false }),
     })),
-    sizes: SZ.map((o) => ({
-      label: o[1],
-      on: st.size === o[0],
-      cls: st.size === o[0] ? 'chip on' : 'chip',
-      pick: () => setState({ size: o[0] }),
+    sizes: sizes.map((o) => ({
+      label: o.label,
+      on: size?.code === o.code,
+      cls: size?.code === o.code ? 'chip on' : 'chip',
+      pick: () => setState({ size: o.code, added: false }),
     })),
     qty: st.qty,
-    inc: () => setState({ qty: Math.min(9, st.qty + 1) }),
-    dec: () => setState({ qty: Math.max(1, st.qty - 1) }),
-    priceText: formatPrice(price),
+    inc: () => setState({ qty: Math.min(9, st.qty + 1), added: false }),
+    dec: () => setState({ qty: Math.max(1, st.qty - 1), added: false }),
+    priceText: formatPrice(unit * st.qty),
     add: () => {
-      for (let i = 0; i < st.qty; i++)
-        addReadyItem({
-          title: 'Cặp đôi áo dài',
-          sub: 'Hộp gỗ chibi, 2 nhân vật',
-          price: st.size === 'm' ? 389000 : 349000,
-          wash: '#fddede',
-          a: { ...base, hair: 'long', outfitColor: dress },
-          b: { ...base, skin: '#e8b896', outfitColor: '#34405a', face: 'wink' },
+      addReadyItem({
+        slug: p.slug,
+        title: p.title,
+        sub: p.sub,
+        price: unit,
+        wash: p.wash,
+        a: pa,
+        b: p.b,
+        variant: { color: color?.value, size: size?.code },
+        variantLabel: variantLabel ? variantLabel.charAt(0).toUpperCase() + variantLabel.slice(1) : '',
+        qty: st.qty,
+      });
+      setState({ added: true });
+    },
+    wished,
+    wish: () => (wish.signedIn ? toggleWish(p.slug).catch(() => {}) : navigate('/dang-nhap?next=/san-pham/' + p.slug)),
+    slideText: 'Ảnh ' + (st.slide + 1) + ' / ' + slides.length,
+    nextSlide: () => setState({ slide: (st.slide + 1) % slides.length }),
+    customLink: '/tao-chibi?hop=' + (p.boxCode || 'wood'),
+    ratingText: p.rating.count ? `${p.rating.avg.toString().replace('.', ',')}/5 từ ${p.rating.count} đánh giá` : 'Chưa có đánh giá trên web',
+    submitReview: async (e) => {
+      e.preventDefault();
+      setState({ reviewBusy: true, reviewError: '' });
+      try {
+        const review = await api('/products/' + p.slug + '/reviews', {
+          method: 'POST',
+          body: { rating: st.rating, body: st.body, photos: st.photos.map((ph) => ph.key) },
         });
+        setData((d) => ({
+          ...d,
+          reviews: [review, ...d.reviews],
+          rating: {
+            count: d.rating.count + 1,
+            avg: Math.round(((d.rating.avg * d.rating.count + review.rating) / (d.rating.count + 1)) * 10) / 10,
+          },
+        }));
+        setState({ reviewBusy: false, body: '', photos: [], rating: 5 });
+      } catch (err) {
+        setState({ reviewBusy: false, reviewError: err.message });
+      }
+    },
+    addPhoto: async (e) => {
+      const file = e.target.files?.[0];
+      e.target.value = '';
+      if (!file) return;
+      try {
+        const up = await upload('/uploads', file);
+        setState({ photos: [...st.photos, up].slice(0, 6), reviewError: '' });
+      } catch (err) {
+        setState({ reviewError: err.message });
+      }
     },
   };
 
@@ -81,9 +177,9 @@ export default function Product() {
         >
           <Link to="/san-pham">Sản phẩm</Link>
           <span aria-hidden="true">/</span>
-          <Link to="/san-pham">Hộp gỗ chibi</Link>
+          <Link to="/san-pham">{CATEGORY_LABELS[p.category] || 'Sản phẩm'}</Link>
           <span aria-hidden="true">/</span>
-          <span style={{ color: '#2a1f2d' }}>Cặp đôi áo dài</span>
+          <span style={{ color: '#2a1f2d' }}>{p.title}</span>
         </nav>
         <div
           style={{
@@ -106,42 +202,52 @@ export default function Product() {
             <div
               style={{
                 position: 'relative',
-                background: '#fddede',
+                background: p.wash,
                 borderRadius: '24px',
                 aspectRatio: '1 / 1',
                 overflow: 'hidden',
               }}
             >
-              <div
-                style={{
-                  position: 'absolute',
-                  left: '9%',
-                  right: '9%',
-                  bottom: '11%',
-                  height: '44%',
-                  borderRadius: '20px',
-                  background: 'rgba(214,160,87,0.28)',
-                  border: '6px solid rgba(214,160,87,0.55)',
-                }}
-              />
-              <div
-                style={{
-                  position: 'absolute',
-                  inset: '0',
-                  display: 'flex',
-                  alignItems: 'flex-end',
-                  justifyContent: 'center',
-                  gap: '2%',
-                  paddingBottom: '18%',
-                }}
-              >
-                <div style={{ width: '36%' }}>
-                  <Chibi {...vals.pa} />
-                </div>
-                <div style={{ width: '36%' }}>
-                  <Chibi {...vals.pb} />
-                </div>
-              </div>
+              {slide.kind === 'chibi' ? (
+                <>
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: '9%',
+                      right: '9%',
+                      bottom: '11%',
+                      height: '44%',
+                      borderRadius: '20px',
+                      background: 'rgba(214,160,87,0.28)',
+                      border: '6px solid rgba(214,160,87,0.55)',
+                    }}
+                  />
+                  <div
+                    style={{
+                      position: 'absolute',
+                      inset: '0',
+                      display: 'flex',
+                      alignItems: 'flex-end',
+                      justifyContent: 'center',
+                      gap: '2%',
+                      paddingBottom: '18%',
+                    }}
+                  >
+                    <div style={{ width: '36%' }}>
+                      <Chibi {...vals.pa} />
+                    </div>
+                    {vals.pb ? (
+                      <div style={{ width: '36%' }}>
+                        <Chibi {...vals.pb} />
+                      </div>
+                    ) : null}
+                  </div>
+                </>
+              ) : slide.kind === 'video' ? (
+                <video src={slide.url} controls playsInline style={fill} />
+              ) : (
+                <img src={slide.url} alt={p.title} style={fill} />
+              )}
               <span
                 className="glass-clear"
                 style={{
@@ -153,84 +259,38 @@ export default function Product() {
                   font: "500 14px/20px 'Be Vietnam Pro', sans-serif",
                 }}
               >
-                Ảnh 1 / 5
+                {vals.slideText}
               </span>
-              <button
-                type="button"
-                className="btn glass-clear btn-icon"
-                aria-label="Ảnh sau"
-                style={{ position: 'absolute', right: '16px', top: '50%', color: '#2a1f2d' }}
-              >
-                <Icon name="chevronRight" />
-              </button>
+              {slides.length > 1 ? (
+                <button
+                  type="button"
+                  className="btn glass-clear btn-icon"
+                  aria-label="Ảnh sau"
+                  onClick={vals.nextSlide}
+                  style={{ position: 'absolute', right: '16px', top: '50%', color: '#2a1f2d' }}
+                >
+                  <Icon name="chevronRight" />
+                </button>
+              ) : null}
             </div>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '12px' }}>
-              <button
-                type="button"
-                aria-label="Ảnh 1"
-                style={{
-                  aspectRatio: '1 / 1',
-                  borderRadius: '16px',
-                  border: '2px solid #2a1f2d',
-                  background: '#fddede',
-                  cursor: 'pointer',
-                  padding: '0',
-                }}
-              />
-              <button
-                type="button"
-                aria-label="Ảnh 2"
-                style={{
-                  aspectRatio: '1 / 1',
-                  borderRadius: '16px',
-                  border: '1px solid #e3d8ca',
-                  background: '#fbeab4',
-                  cursor: 'pointer',
-                  padding: '0',
-                }}
-              />
-              <button
-                type="button"
-                aria-label="Ảnh 3"
-                style={{
-                  aspectRatio: '1 / 1',
-                  borderRadius: '16px',
-                  border: '1px solid #e3d8ca',
-                  background: '#e8e0f8',
-                  cursor: 'pointer',
-                  padding: '0',
-                }}
-              />
-              <button
-                type="button"
-                aria-label="Ảnh 4"
-                style={{
-                  aspectRatio: '1 / 1',
-                  borderRadius: '16px',
-                  border: '1px solid #e3d8ca',
-                  background: '#d3efe9',
-                  cursor: 'pointer',
-                  padding: '0',
-                }}
-              />
-              <button
-                type="button"
-                aria-label="Video cận cảnh chất liệu"
-                className="ph"
-                style={{
-                  aspectRatio: '1 / 1',
-                  borderRadius: '16px',
-                  border: '1px solid #e3d8ca',
-                  cursor: 'pointer',
-                  padding: '0',
-                }}
-              >
-                <Icon name="play" className="ic ic-24" />
-              </button>
-            </div>
-            <p className="cap">
-              Ảnh 5 là video cận cảnh chất liệu đồ handmade. [Thêm ảnh và video thật của sản phẩm]
-            </p>
+            {slides.length > 1 ? (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: '12px' }}>
+                {slides.map((s, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    aria-label={s.kind === 'video' ? 'Video cận cảnh chất liệu' : 'Ảnh ' + (i + 1)}
+                    aria-pressed={st.slide === i}
+                    className={s.kind === 'video' ? 'ph' : undefined}
+                    onClick={() => setState({ slide: i })}
+                    style={thumbStyle(st.slide === i, p.wash)}
+                  >
+                    {s.kind === 'image' ? <img src={s.url} alt="" style={fill} /> : null}
+                    {s.kind === 'video' ? <Icon name="play" className="ic ic-24" /> : null}
+                  </button>
+                ))}
+              </div>
+            ) : null}
           </section>
           <section
             style={{
@@ -243,59 +303,56 @@ export default function Product() {
           >
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <span className="tag t-ok">Có sẵn</span>
-                <span className="tag t-butter">Hộp gỗ chibi</span>
+                <span className={p.ready ? 'tag t-ok' : 'tag t-butter'}>{p.ready ? 'Có sẵn' : 'Đặt làm theo ý bạn'}</span>
+                <span className="tag t-butter">{CATEGORY_LABELS[p.category]}</span>
               </div>
-              <h1 className="hd">Cặp đôi áo dài</h1>
+              <h1 className="hd">{p.title}</h1>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <div style={{ display: 'flex', gap: '2px' }}>
-                  <Icon name="star" className="star" />
-                  <Icon name="star" className="star" />
-                  <Icon name="star" className="star" />
-                  <Icon name="star" className="star" />
-                  <Icon name="star" className="star" />
-                </div>
-                <span className="bsm mut">4.9/5 trên Shopee</span>
+                <Stars value={p.rating.count ? p.rating.avg : 5} />
+                <span className="bsm mut">{vals.ratingText}</span>
               </div>
               <span className="hlg">{vals.priceText}</span>
-              <p className="bsm mut">
-                Hộp gỗ chibi với hai nhân vật mặc áo dài. Làm thủ công, shop gửi ảnh để bạn duyệt trước khi
-                giao.
+              <p className="bsm mut" style={{ whiteSpace: 'pre-line' }}>
+                {p.description || p.sub}
               </p>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <span className="flabel">Màu áo dài</span>
-              <div
-                style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}
-                role="group"
-                aria-label="Chọn màu"
-              >
-                {vals.colors.map((k, index) => (
-                  <button
-                    key={index}
-                    type="button"
-                    className={k.cls}
-                    aria-pressed={k.on}
-                    aria-label={k.label}
-                    onClick={k.pick}
-                    style={{ minWidth: '88px', flexDirection: 'row', gap: '10px', padding: '8px 14px' }}
-                  >
-                    <span className="swatch" style={{ background: k.color, width: '24px', height: '24px' }} />
-                    <span className="bsm">{k.label}</span>
-                  </button>
-                ))}
+            {vals.colors.length ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <span className="flabel">Màu</span>
+                <div
+                  style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}
+                  role="group"
+                  aria-label="Chọn màu"
+                >
+                  {vals.colors.map((k, index) => (
+                    <button
+                      key={index}
+                      type="button"
+                      className={k.cls}
+                      aria-pressed={k.on}
+                      aria-label={k.label}
+                      onClick={k.pick}
+                      style={{ minWidth: '88px', flexDirection: 'row', gap: '10px', padding: '8px 14px' }}
+                    >
+                      <span className="swatch" style={{ background: k.color, width: '24px', height: '24px' }} />
+                      <span className="bsm">{k.label}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <span className="flabel">Kích thước</span>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {vals.sizes.map((k, index) => (
-                  <button key={index} type="button" className={k.cls} aria-pressed={k.on} onClick={k.pick}>
-                    {k.label}
-                  </button>
-                ))}
+            ) : null}
+            {vals.sizes.length ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <span className="flabel">Kích thước</span>
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {vals.sizes.map((k, index) => (
+                    <button key={index} type="button" className={k.cls} aria-pressed={k.on} onClick={k.pick}>
+                      {k.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : null}
             <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
               <div
                 style={{
@@ -336,34 +393,51 @@ export default function Product() {
               </button>
               <button
                 type="button"
-                className="btn btn-line btn-icon btn-lg"
-                aria-label="Lưu vào yêu thích"
+                className={vals.wished ? 'btn btn-pink btn-icon btn-lg' : 'btn btn-line btn-icon btn-lg'}
+                aria-label={vals.wished ? 'Bỏ khỏi yêu thích' : 'Lưu vào yêu thích'}
+                aria-pressed={vals.wished}
+                onClick={vals.wish}
                 style={{ width: '52px', padding: '0' }}
               >
                 <Icon name="heart" />
               </button>
             </div>
-            <div
-              style={{
-                background: '#fddede',
-                borderRadius: '20px',
-                padding: '20px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: '16px',
-                flexWrap: 'wrap',
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: '1 1 220px' }}>
-                <span className="hh">Muốn khác một chút?</span>
-                <span className="bsm">Hộp gỗ chibi sẽ được chọn sẵn, bạn chỉ cần đổi tóc và trang phục.</span>
+            {st.added ? (
+              <div
+                role="status"
+                className="tag t-ok"
+                style={{ alignSelf: 'flex-start', padding: '8px 16px', fontSize: '14px', gap: '8px' }}
+              >
+                <Icon name="check" />
+                Đã thêm vào giỏ hàng.{' '}
+                <Link to="/gio-hang" style={{ textDecoration: 'underline' }}>
+                  Xem giỏ hàng
+                </Link>
               </div>
-              <Link to="/tao-chibi?hop=wood" className="btn btn-ink">
-                Tự tay tạo chibi
-                <Icon name="arrowRight" />
-              </Link>
-            </div>
+            ) : null}
+            {p.boxCode ? (
+              <div
+                style={{
+                  background: '#fddede',
+                  borderRadius: '20px',
+                  padding: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '16px',
+                  flexWrap: 'wrap',
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', flex: '1 1 220px' }}>
+                  <span className="hh">Muốn khác một chút?</span>
+                  <span className="bsm">Loại hộp của mẫu này sẽ được chọn sẵn, bạn chỉ cần đổi tóc và trang phục.</span>
+                </div>
+                <Link to={vals.customLink} className="btn btn-ink">
+                  Tự tay tạo chibi
+                  <Icon name="arrowRight" />
+                </Link>
+              </div>
+            ) : null}
             <div
               style={{
                 display: 'grid',
@@ -396,40 +470,85 @@ export default function Product() {
               <span className="lbl">Đánh giá</span>
               <h2 className="hlg">Khách đã mua nói gì</h2>
             </div>
-            <span className="bsm mut">4.9/5 trên Shopee</span>
+            <span className="bsm mut">Shop đạt 4.9/5 trên Shopee</span>
           </div>
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
-              gap: '24px',
-            }}
-          >
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="ph" style={{ aspectRatio: '4 / 3', flexDirection: 'column', gap: '8px' }}>
-                <Icon name="image" className="ic ic-24" />
-                <span className="bsm">[Hình thực tế khách gửi]</span>
-              </div>
-              <p className="bsm mut">[Nội dung đánh giá của khách]</p>
-              <span className="cap">[Tên khách], [ngày đánh giá]</span>
+          {p.reviews.length ? (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))',
+                gap: '24px',
+              }}
+            >
+              {p.reviews.map((r) => (
+                <div key={r.id} className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {r.photoUrls.length ? (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: '8px' }}>
+                      {r.photoUrls.map((u) => (
+                        <img key={u} src={u} alt="Ảnh thực tế khách gửi" style={{ ...fill, aspectRatio: '1 / 1', borderRadius: '12px' }} />
+                      ))}
+                    </div>
+                  ) : null}
+                  <Stars value={r.rating} />
+                  {r.body ? <p className="bsm mut">{r.body}</p> : null}
+                  <span className="cap">
+                    {r.name}, {formatDate(r.createdAt)}
+                  </span>
+                </div>
+              ))}
             </div>
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="ph" style={{ aspectRatio: '4 / 3', flexDirection: 'column', gap: '8px' }}>
-                <Icon name="image" className="ic ic-24" />
-                <span className="bsm">[Hình thực tế khách gửi]</span>
+          ) : (
+            <p className="bsm mut">Chưa có đánh giá nào cho sản phẩm này.</p>
+          )}
+          {user ? (
+            <form className="card" onSubmit={vals.submitReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '640px' }}>
+              <h3 className="hh">Viết đánh giá</h3>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }} role="group" aria-label="Số sao">
+                {[5, 4, 3, 2, 1].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className={st.rating === n ? 'chip on' : 'chip'}
+                    aria-pressed={st.rating === n}
+                    onClick={() => setState({ rating: n })}
+                  >
+                    {n} sao
+                  </button>
+                ))}
               </div>
-              <p className="bsm mut">[Nội dung đánh giá của khách]</p>
-              <span className="cap">[Tên khách], [ngày đánh giá]</span>
-            </div>
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <div className="ph" style={{ aspectRatio: '4 / 3', flexDirection: 'column', gap: '8px' }}>
-                <Icon name="image" className="ic ic-24" />
-                <span className="bsm">[Hình thực tế khách gửi]</span>
+              <div className="field">
+                <label htmlFor="rv">Cảm nhận của bạn</label>
+                <textarea id="rv" className="input" rows="3" value={st.body} onChange={(e) => setState({ body: e.target.value })} />
               </div>
-              <p className="bsm mut">[Nội dung đánh giá của khách]</p>
-              <span className="cap">[Tên khách], [ngày đánh giá]</span>
-            </div>
-          </div>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                {st.photos.map((ph) => (
+                  <img key={ph.key} src={ph.url} alt="" style={{ width: '64px', height: '64px', objectFit: 'cover', borderRadius: '12px' }} />
+                ))}
+                {st.photos.length < 6 ? (
+                  <label className="btn btn-line">
+                    <Icon name="upload" />
+                    Thêm ảnh thực tế
+                    <input type="file" accept="image/jpeg,image/png,image/webp,image/gif" hidden onChange={vals.addPhoto} />
+                  </label>
+                ) : null}
+              </div>
+              {st.reviewError ? (
+                <p className="bsm" role="alert" style={errorBox}>
+                  {st.reviewError}
+                </p>
+              ) : null}
+              <button type="submit" className="btn btn-ink" style={{ alignSelf: 'flex-start' }} disabled={st.reviewBusy}>
+                {st.reviewBusy ? 'Đang gửi...' : 'Gửi đánh giá'}
+              </button>
+            </form>
+          ) : (
+            <p className="bsm mut">
+              Đã mua sản phẩm này?{' '}
+              <Link to={'/dang-nhap?next=/san-pham/' + p.slug} className="deep" style={{ fontWeight: '500', textDecoration: 'underline' }}>
+                Đăng nhập để đánh giá
+              </Link>
+            </p>
+          )}
         </section>
       </main>
       <SiteFooter />

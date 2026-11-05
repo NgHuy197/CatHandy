@@ -6,97 +6,157 @@ import useMergedState from '../lib/useMergedState';
 import css from '../lib/css';
 import reveal from '../lib/reveal';
 import { chibi, formatPrice } from '../lib/chibi';
+import { api, upload, useApi } from '../lib/api';
+import { CATEGORY_LABELS } from '../lib/products';
+
+const MATERIALS = ['Gỗ', 'Mica', 'Khác'];
+const errorBox = { background: 'var(--danger-wash)', color: 'var(--danger)', borderRadius: '12px', padding: '12px 16px' };
+
+const emptyForm = {
+  id: null,
+  title: '',
+  sub: '',
+  description: '',
+  price: '',
+  category: 'go',
+  material: 'Gỗ',
+  ready: true,
+  wash: '#fddede',
+  boxCode: '',
+  images: [],
+  colors: [],
+  sizes: [],
+  chibiA: chibi({}),
+  chibiB: null,
+};
+
+const toForm = (p) => ({
+  id: p.id,
+  title: p.title,
+  sub: p.sub,
+  description: p.description,
+  price: String(p.price),
+  category: p.category,
+  material: p.material,
+  ready: p.ready,
+  wash: p.wash,
+  boxCode: p.boxCode || '',
+  images: p.images.map((key, i) => ({ key, url: p.imageUrls[i] })),
+  colors: p.variants?.colors || [],
+  sizes: (p.variants?.sizes || []).map((s) => ({ ...s, price: String(s.price) })),
+  chibiA: p.chibiA,
+  chibiB: p.chibiB,
+});
+
+const digits = (v) => String(v).replace(/\D/g, '');
 
 export default function AdminProducts() {
   const detailRef = useRef(null);
-  const [state, setState] = useMergedState({
-    sel: 'p1',
-    hidden: {},
-    isNew: false,
-    fTitle: 'Cặp đôi áo dài',
-    fSub: 'Hộp gỗ chibi, 2 nhân vật',
-    fPrice: '389000',
-  });
+  const list = useApi('/admin/products');
+  const config = useApi('/admin/customizer');
+  const [state, setState] = useMergedState({ form: emptyForm, busy: false, error: '', saved: '' });
 
   const st = state;
-  const P = [
-    {
-      id: 'p1',
-      title: 'Cặp đôi áo dài',
-      sub: 'Hộp gỗ chibi, 2 nhân vật',
-      cat: 'Hộp gỗ chibi',
-      price: 389000,
-      wash: '#fddede',
-      a: chibi({ hair: 'long', outfitColor: '#c9484f' }),
-    },
-    {
-      id: 'p2',
-      title: 'Chibi vest xanh',
-      sub: 'Hộp mica chibi, 1 nhân vật',
-      cat: 'Quà tặng cho nam',
-      price: 289000,
-      wash: '#d6ebfa',
-      a: chibi({ skin: '#e8b896', outfit: 'vest', outfitColor: '#34405a', glasses: true }),
-    },
-    {
-      id: 'p3',
-      title: 'Bé hoa tặng mẹ',
-      sub: 'Hộp gỗ chibi, 1 nhân vật',
-      cat: 'Hộp gỗ chibi',
-      price: 259000,
-      wash: '#e8e0f8',
-      a: chibi({ hair: 'bun', outfit: 'shirt', outfitColor: '#cbbdf0', accessory: 'bouquet' }),
-    },
-    {
-      id: 'p4',
-      title: 'Bộ cô dâu chú rể mini',
-      sub: 'Quà cưới, 2 nhân vật',
-      cat: 'Quà cưới cao cấp',
-      price: 549000,
-      wash: '#fbeab4',
-      a: chibi({ hair: 'long', outfit: 'wedding', outfitColor: '#fffaf0' }),
-    },
-    {
-      id: 'p5',
-      title: 'Hoa cài tóc chibi',
-      sub: 'Phụ kiện quà tặng',
-      cat: 'Phụ kiện quà tặng',
-      price: 59000,
-      wash: '#fbeab4',
-      a: chibi({ hair: 'long', hairColor: '#5a3a2a', outfit: 'shirt', accessory: 'flower' }),
-    },
-  ];
-  const tg = (on) => (on ? 'toggle on' : 'toggle');
-  const load = (p) => {
-    setState({ sel: p.id, isNew: false, fTitle: p.title, fSub: p.sub, fPrice: String(p.price) });
-    reveal(detailRef.current);
+  const f = st.form;
+  const setForm = (patch) => setState({ form: { ...f, ...patch }, saved: '' });
+  const run = async (fn, saved = '') => {
+    setState({ busy: true, error: '', saved: '' });
+    try {
+      await fn();
+      setState({ busy: false, saved });
+    } catch (err) {
+      setState({ busy: false, error: err.message });
+    }
   };
+  const replaceRow = (row) => list.setData((rows) => rows.map((p) => (p.id === row.id ? row : p)));
+  const tg = (on) => (on ? 'toggle on' : 'toggle');
+
   const vals = {
-    rows: P.map((p) => {
-      const hidden = !!st.hidden[p.id];
-      return Object.assign({}, p, {
+    rows: (list.data || []).map((p) =>
+      Object.assign({}, p, {
+        a: chibi(p.chibiA),
+        cat: CATEGORY_LABELS[p.category],
         price: formatPrice(p.price),
-        visible: !hidden,
-        toggleCls: tg(!hidden),
-        visibleText: hidden ? 'Đang ẩn' : 'Đang bán',
-        toggleLabel: (hidden ? 'Hiện ' : 'Ẩn ') + p.title,
-        toggle: () => setState({ hidden: Object.assign({}, st.hidden, { [p.id]: !hidden }) }),
-        edit: () => load(p),
-        style: !st.isNew && st.sel === p.id ? 'background:#fdeeee' : hidden ? 'opacity:.6' : '',
-      });
-    }),
+        visible: !p.hidden,
+        toggleCls: tg(!p.hidden),
+        visibleText: p.hidden ? 'Đang ẩn' : 'Đang bán',
+        toggleLabel: (p.hidden ? 'Hiện ' : 'Ẩn ') + p.title,
+        toggle: () =>
+          run(async () => replaceRow(await api('/admin/products/' + p.id, { method: 'PATCH', body: { hidden: !p.hidden } }))),
+        edit: () => {
+          setState({ form: toForm(p), error: '', saved: '' });
+          reveal(detailRef.current);
+        },
+        remove: () => {
+          if (!window.confirm(`Xóa "${p.title}"? Đơn cũ vẫn giữ thông tin sản phẩm.`)) return;
+          run(async () => {
+            await api('/admin/products/' + p.id, { method: 'DELETE' });
+            list.setData((rows) => rows.filter((x) => x.id !== p.id));
+            if (f.id === p.id) setState({ form: emptyForm });
+          });
+        },
+        style: f.id === p.id ? 'background:#fdeeee' : p.hidden ? 'opacity:.6' : '',
+      }),
+    ),
     openNew: () => {
-      setState({ isNew: true, sel: null, fTitle: '', fSub: '', fPrice: '' });
+      setState({ form: emptyForm, error: '', saved: '' });
       reveal(detailRef.current);
     },
-    formTitle: st.isNew ? 'Thêm sản phẩm mới' : 'Sửa sản phẩm',
-    formMode: st.isNew ? 'Mới' : 'Đang sửa',
-    fTitle: st.fTitle,
-    fSub: st.fSub,
-    fPrice: st.fPrice,
-    onTitle: (e) => setState({ fTitle: e.target.value }),
-    onSub: (e) => setState({ fSub: e.target.value }),
-    onPrice: (e) => setState({ fPrice: e.target.value }),
+    formTitle: f.id ? 'Sửa sản phẩm' : 'Thêm sản phẩm mới',
+    formMode: f.id ? 'Đang sửa' : 'Mới',
+    boxes: config.data?.boxes || [],
+    presets: config.data?.presets || [],
+    pickPreset: (e) => {
+      const p = vals.presets.find((x) => String(x.id) === e.target.value);
+      if (p) setForm({ chibiA: chibi(p.chars[0]), chibiB: p.count === 2 ? chibi(p.chars[1]) : null, boxCode: p.box });
+    },
+    addImages: (e) => {
+      const files = [...(e.target.files || [])];
+      e.target.value = '';
+      if (!files.length) return;
+      run(async () => {
+        const added = [];
+        for (const file of files) added.push(await upload('/admin/uploads', file));
+        setState({ form: { ...f, images: [...f.images, ...added] } });
+      });
+    },
+    removeImage: (key) => setForm({ images: f.images.filter((im) => im.key !== key) }),
+    addColor: () => setForm({ colors: [...f.colors, { value: '#fd9999', label: '' }] }),
+    addSize: () => setForm({ sizes: [...f.sizes, { code: 'c' + (f.sizes.length + 1), label: '', price: f.price }] }),
+    setColor: (i, patch) => setForm({ colors: f.colors.map((c, j) => (j === i ? { ...c, ...patch } : c)) }),
+    setSize: (i, patch) => setForm({ sizes: f.sizes.map((s, j) => (j === i ? { ...s, ...patch } : s)) }),
+    dropColor: (i) => setForm({ colors: f.colors.filter((_, j) => j !== i) }),
+    dropSize: (i) => setForm({ sizes: f.sizes.filter((_, j) => j !== i) }),
+    save: (e) => {
+      e.preventDefault();
+      const body = {
+        title: f.title,
+        sub: f.sub,
+        description: f.description,
+        price: Number(digits(f.price)),
+        category: f.category,
+        material: f.material,
+        ready: f.ready,
+        wash: f.wash,
+        boxCode: f.boxCode || null,
+        images: f.images.map((im) => im.key),
+        variants: {
+          colors: f.colors.filter((c) => c.label.trim()),
+          sizes: f.sizes.filter((s) => s.label.trim()).map((s) => ({ ...s, price: Number(digits(s.price)) })),
+        },
+        chibiA: f.chibiA,
+        chibiB: f.chibiB,
+      };
+      run(async () => {
+        const row = await api(f.id ? '/admin/products/' + f.id : '/admin/products', {
+          method: f.id ? 'PATCH' : 'POST',
+          body,
+        });
+        if (f.id) replaceRow(row);
+        else list.setData((rows) => [...rows, row]);
+        setState({ form: toForm(row) });
+      }, 'Đã lưu sản phẩm');
+    },
   };
 
   return (
@@ -135,6 +195,11 @@ export default function AdminProducts() {
             Thêm sản phẩm
           </button>
         </div>
+        {list.error ? (
+          <p className="bsm" role="alert" style={errorBox}>
+            {list.error.message}
+          </p>
+        ) : null}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'flex-start' }}>
           <section
             className="card"
@@ -154,8 +219,8 @@ export default function AdminProducts() {
                   </tr>
                 </thead>
                 <tbody>
-                  {vals.rows.map((r, index) => (
-                    <tr key={index} style={css(r.style)}>
+                  {vals.rows.map((r) => (
+                    <tr key={r.id} style={css(r.style)}>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                           <div
@@ -169,13 +234,20 @@ export default function AdminProducts() {
                               flex: 'none',
                             }}
                           >
-                            <div style={{ position: 'absolute', width: '64px', left: '-4px', top: '-2px' }}>
-                              <Chibi {...r.a} />
-                            </div>
+                            {r.imageUrls[0] && !/\.mp4$/i.test(r.imageUrls[0]) ? (
+                              <img src={r.imageUrls[0]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            ) : (
+                              <div style={{ position: 'absolute', width: '64px', left: '-4px', top: '-2px' }}>
+                                <Chibi {...r.a} />
+                              </div>
+                            )}
                           </div>
                           <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <span style={{ fontWeight: '600' }}>{r.title}</span>
-                            <span className="cap">{r.sub}</span>
+                            <span className="cap">
+                              {r.sub}
+                              {r.ready ? '' : ', đặt làm'}
+                            </span>
                           </div>
                         </div>
                       </td>
@@ -219,6 +291,7 @@ export default function AdminProducts() {
                             type="button"
                             className="btn btn-ghost btn-icon"
                             aria-label={`Xóa ${r.title}`}
+                            onClick={r.remove}
                           >
                             <Icon name="trash" />
                           </button>
@@ -230,9 +303,10 @@ export default function AdminProducts() {
               </table>
             </div>
           </section>
-          <aside
+          <form
             ref={detailRef}
             className="card detail-anchor"
+            onSubmit={vals.save}
             style={{
               flex: '1 1 340px',
               maxWidth: '440px',
@@ -248,25 +322,73 @@ export default function AdminProducts() {
               <h2 className="hh">{vals.formTitle}</h2>
               <span className="tag t-sand">{vals.formMode}</span>
             </div>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div
+                style={{
+                  width: '96px',
+                  height: '96px',
+                  borderRadius: '16px',
+                  background: f.wash,
+                  display: 'flex',
+                  alignItems: 'flex-end',
+                  justifyContent: 'center',
+                  gap: '2%',
+                  paddingBottom: '6px',
+                  flex: 'none',
+                  overflow: 'hidden',
+                }}
+              >
+                <div style={{ width: '42%' }}>
+                  <Chibi {...chibi(f.chibiA)} />
+                </div>
+                {f.chibiB ? (
+                  <div style={{ width: '42%' }}>
+                    <Chibi {...chibi(f.chibiB)} />
+                  </div>
+                ) : null}
+              </div>
+              <div className="field" style={{ flex: '1', minWidth: '0' }}>
+                <label htmlFor="pk">Hình nhân vật trên thẻ</label>
+                <select id="pk" className="input" value="" onChange={vals.pickPreset}>
+                  <option value="">Lấy từ mẫu gợi ý...</option>
+                  {vals.presets.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div className="field">
               <label htmlFor="pt">Tên sản phẩm</label>
               <input
                 id="pt"
                 className="input"
-                value={vals.fTitle}
-                onChange={vals.onTitle}
+                required
+                value={f.title}
+                onChange={(e) => setForm({ title: e.target.value })}
                 placeholder="Ví dụ: Cặp đôi áo dài"
               />
             </div>
             <div className="field">
               <label htmlFor="ps">Mô tả ngắn</label>
-              <textarea
+              <input
                 id="ps"
                 className="input"
+                value={f.sub}
+                onChange={(e) => setForm({ sub: e.target.value })}
+                placeholder="Loại hộp, số nhân vật"
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="pd">Mô tả chi tiết</label>
+              <textarea
+                id="pd"
+                className="input"
                 rows="3"
-                value={vals.fSub}
-                onChange={vals.onSub}
-                placeholder="Loại hộp, số nhân vật, điểm nổi bật"
+                value={f.description}
+                onChange={(e) => setForm({ description: e.target.value })}
+                placeholder="Chất liệu, kích thước, điểm nổi bật"
               />
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
@@ -276,24 +398,140 @@ export default function AdminProducts() {
                   id="pp"
                   className="input"
                   inputMode="numeric"
-                  value={vals.fPrice}
-                  onChange={vals.onPrice}
+                  required
+                  value={f.price}
+                  onChange={(e) => setForm({ price: digits(e.target.value) })}
                 />
               </div>
               <div className="field">
                 <label htmlFor="pc">Loại</label>
-                <select id="pc" className="input">
-                  <option>Hộp gỗ chibi</option>
-                  <option>Hộp mica chibi</option>
-                  <option>Quà cưới cao cấp</option>
-                  <option>Quà tặng cho nam</option>
-                  <option>Phụ kiện quà tặng</option>
+                <select id="pc" className="input" value={f.category} onChange={(e) => setForm({ category: e.target.value })}>
+                  {Object.entries(CATEGORY_LABELS).map(([v, l]) => (
+                    <option key={v} value={v}>
+                      {l}
+                    </option>
+                  ))}
                 </select>
+              </div>
+              <div className="field">
+                <label htmlFor="pm">Chất liệu</label>
+                <select id="pm" className="input" value={f.material} onChange={(e) => setForm({ material: e.target.value })}>
+                  {MATERIALS.map((m) => (
+                    <option key={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="pr">Tình trạng</label>
+                <select
+                  id="pr"
+                  className="input"
+                  value={f.ready ? 'ready' : 'custom'}
+                  onChange={(e) => setForm({ ready: e.target.value === 'ready' })}
+                >
+                  <option value="ready">Có sẵn</option>
+                  <option value="custom">Đặt làm</option>
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="pb">Hộp cho nút "Tự tay tạo chibi"</label>
+                <select id="pb" className="input" value={f.boxCode} onChange={(e) => setForm({ boxCode: e.target.value })}>
+                  <option value="">Không có</option>
+                  {vals.boxes.map((b) => (
+                    <option key={b.code} value={b.code}>
+                      {b.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="field">
+                <label htmlFor="pw">Màu nền thẻ</label>
+                <input id="pw" type="color" className="input" value={f.wash} onChange={(e) => setForm({ wash: e.target.value })} />
               </div>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <span className="flabel">Màu (khách chọn, đổi màu trang phục nhân vật 1)</span>
+              {f.colors.map((c, i) => (
+                <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    type="color"
+                    aria-label="Mã màu"
+                    className="input"
+                    style={{ width: '56px', padding: '4px' }}
+                    value={c.value}
+                    onChange={(e) => vals.setColor(i, { value: e.target.value })}
+                  />
+                  <input
+                    className="input"
+                    aria-label="Tên màu"
+                    placeholder="Tên màu, ví dụ Đỏ"
+                    value={c.label}
+                    onChange={(e) => vals.setColor(i, { label: e.target.value })}
+                  />
+                  <button type="button" className="btn btn-ghost btn-icon" aria-label="Bỏ màu này" onClick={() => vals.dropColor(i)}>
+                    <Icon name="x" />
+                  </button>
+                </div>
+              ))}
+              <button type="button" className="btn btn-line" style={{ alignSelf: 'flex-start' }} onClick={vals.addColor}>
+                <Icon name="plus" />
+                Thêm màu
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <span className="flabel">Kích thước (mỗi cỡ một giá)</span>
+              {f.sizes.map((s, i) => (
+                <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <input
+                    className="input"
+                    aria-label="Tên cỡ"
+                    placeholder="Tên cỡ, ví dụ Vừa"
+                    value={s.label}
+                    onChange={(e) => vals.setSize(i, { label: e.target.value })}
+                  />
+                  <input
+                    className="input"
+                    aria-label="Giá cỡ này"
+                    inputMode="numeric"
+                    style={{ width: '120px' }}
+                    value={s.price}
+                    onChange={(e) => vals.setSize(i, { price: digits(e.target.value) })}
+                  />
+                  <button type="button" className="btn btn-ghost btn-icon" aria-label="Bỏ cỡ này" onClick={() => vals.dropSize(i)}>
+                    <Icon name="x" />
+                  </button>
+                </div>
+              ))}
+              <button type="button" className="btn btn-line" style={{ alignSelf: 'flex-start' }} onClick={vals.addSize}>
+                <Icon name="plus" />
+                Thêm cỡ
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <span className="flabel">Ảnh và video sản phẩm</span>
-              <div
+              {f.images.length ? (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(80px, 1fr))', gap: '8px' }}>
+                  {f.images.map((im) => (
+                    <div key={im.key} style={{ position: 'relative' }}>
+                      {/\.mp4$/i.test(im.key) ? (
+                        <video src={im.url} muted style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: '12px', display: 'block' }} />
+                      ) : (
+                        <img src={im.url} alt="" style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: '12px', display: 'block' }} />
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-line btn-icon"
+                        aria-label="Bỏ ảnh"
+                        onClick={() => vals.removeImage(im.key)}
+                        style={{ position: 'absolute', top: '4px', right: '4px', width: '32px', height: '32px', minHeight: '32px', background: '#ffffff' }}
+                      >
+                        <Icon name="x" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+              <label
                 className="ph"
                 style={{
                   minHeight: '120px',
@@ -302,21 +540,33 @@ export default function AdminProducts() {
                   gap: '6px',
                   textAlign: 'center',
                   padding: '16px',
+                  cursor: 'pointer',
                 }}
               >
                 <Icon name="upload" className="ic ic-24" />
-                <span className="bsm">Kéo ảnh vào đây hoặc chọn từ máy</span>
-              </div>
+                <span className="bsm">Chọn ảnh (JPG, PNG, WebP) hoặc video MP4 từ máy</span>
+                <input type="file" accept="image/jpeg,image/png,image/webp,image/gif,video/mp4" multiple hidden onChange={vals.addImages} />
+              </label>
             </div>
+            {st.error ? (
+              <p className="bsm" role="alert" style={errorBox}>
+                {st.error}
+              </p>
+            ) : null}
+            {st.saved ? (
+              <p className="bsm" role="status">
+                {st.saved}
+              </p>
+            ) : null}
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <button type="button" className="btn btn-ink">
-                Lưu sản phẩm
+              <button type="submit" className="btn btn-ink" disabled={st.busy}>
+                {st.busy ? 'Đang lưu...' : 'Lưu sản phẩm'}
               </button>
               <button type="button" className="btn btn-line" onClick={vals.openNew}>
                 Làm mới
               </button>
             </div>
-          </aside>
+          </form>
         </div>
       </main>
     </div>

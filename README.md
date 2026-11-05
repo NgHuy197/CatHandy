@@ -1,34 +1,40 @@
 # Cat Handy
 
-Storefront and admin UI for Cat Handy, built from the Cat Handy design canvas with Vite and React, running on Cloudflare Workers.
+Storefront and admin for Cat Handy, built from the Cat Handy design canvas with Vite and React, running on Cloudflare Workers.
 
-- `src/`: React app, served as static assets. Storefront at `/`, admin at `/admin`.
-- `worker/index.js`: Hono API under `/api/*`.
-- `db/schema.js`: Drizzle schema for the D1 database. `migrations/` holds the generated SQL, `db/seed.sql` the sample catalog.
-- `wrangler.jsonc`: Worker, static assets and D1 binding.
+- `src/`: React app, served as static assets. Storefront at `/`, admin at `/admin` (admins only).
+- `worker/`: Hono API under `/api/*`. `worker/index.js` mounts the routes in `worker/routes/`; shared helpers are in `worker/lib/`.
+- `shared/`: code both sides import: customizer pricing (`customizer.js`), order statuses (`orders.js`), formatting.
+- `db/schema.js`: Drizzle schema for D1. `migrations/` holds the generated SQL, `db/seed.sql` the starting catalog, customizer options, prices and presets.
+- `wrangler.jsonc`: Worker, static assets, D1 (`DB`) and R2 (`MEDIA`) bindings.
 
 ## Local development
 
 ```bash
 npm install
+cp .dev.vars.example .dev.vars
 npm run db:migrate:local
 npm run db:seed:local
 npm run dev
 ```
 
-`npm run dev` runs the React app and the Worker together on http://localhost:5173, with a local D1 database stored in `.wrangler/`.
+`npm run dev` runs the React app and the Worker together on http://localhost:5173, with local D1 and R2 stored in `.wrangler/`.
 
-## API
+To get an admin account, put your email in `ADMIN_EMAILS` in `.dev.vars` and sign up at `/dang-nhap?tab=dang-ky` with it. `.dev.vars.example` lists a ready-made local test admin.
 
-| Route | |
+## What the API covers
+
+| Area | Routes |
 |---|---|
-| `GET /api/health` | Liveness check |
-| `GET /api/products` | Catalog |
-| `GET /api/products/:slug` | One product |
-| `POST /api/orders` | Place an order from the cart. Ready-made items are priced from the catalog. |
-| `GET /api/orders/:code` | Public order tracking: status and items, no customer details |
+| Accounts | `POST /api/auth/register`, `/login`, `/google`, `/logout`, `GET /api/auth/me`, `PATCH /api/account`, `GET /api/account/orders`, wishlist under `/api/account/wishlist` |
+| Catalog | `GET /api/products`, `GET /api/products/:slug` (with reviews), `POST /api/products/:slug/reviews` (buyers only), `GET /api/customizer` |
+| Orders | `POST /api/orders`, `GET /api/orders/track?q=` (code or phone), `POST /api/orders/:code/approve`, `POST /api/orders/:code/revision` |
+| Admin | `/api/admin/orders` (status, notes, finished photos), `/api/admin/customers`, `/api/admin/options`, `/api/admin/settings`, `/api/admin/presets`, `/api/admin/products`, `/api/admin/reports`, `/api/admin/uploads` |
+| Files | `POST /api/uploads` (review photos), `GET /api/media/<key>` (anything stored in R2) |
 
-Checkout already posts to `/api/orders`. The cart itself still lives in `localStorage` (`src/lib/cart.js`), and catalog, account, tracking and admin screens still use sample data until they are switched to the API. Admin routes need auth before they get an API.
+The server re-prices every order: ready-made items from the catalog, custom chibi from the admin's customizer options through `shared/customizer.js`, the same code the customizer uses for its live price. The cart itself stays in `localStorage`.
+
+New orders appear highlighted in the admin with a count in the sidebar, and go to Telegram when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set.
 
 ## Changing the schema
 
@@ -46,9 +52,16 @@ Once per Cloudflare account:
 ```bash
 npx wrangler login
 npx wrangler d1 create cat-handy
+npx wrangler r2 bucket create cat-handy-media
 ```
 
-Paste the printed `database_id` into `wrangler.jsonc`, then:
+Paste the printed `database_id` into `wrangler.jsonc`. Set the settings from `.dev.vars.example` as secrets (only `ADMIN_EMAILS` is required):
+
+```bash
+npx wrangler secret put ADMIN_EMAILS
+```
+
+Then:
 
 ```bash
 npm run db:migrate:remote

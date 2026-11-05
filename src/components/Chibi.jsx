@@ -437,6 +437,16 @@ export default function Chibi(props) {
           </svg>
         </>
       ) : null}
+      {/* Layer images the admin uploaded for an option, drawn on the same 200x260 canvas. */}
+      {(p.layers || []).map((src) => (
+        <img
+          key={src}
+          src={src}
+          alt=""
+          aria-hidden="true"
+          style={{ position: 'absolute', inset: '0', width: '100%', height: '100%', objectFit: 'contain' }}
+        />
+      ))}
     </div>
   );
 }

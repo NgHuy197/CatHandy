@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useSearchParams } from 'react-router-dom';
 import SiteHeader from '../components/SiteHeader';
 import MiniChibi from '../components/MiniChibi';
 import Chibi from '../components/Chibi';
@@ -7,89 +7,85 @@ import SiteFooter from '../components/SiteFooter';
 import Icon from '../components/Icon';
 import useMergedState from '../lib/useMergedState';
 import css from '../lib/css';
-import { formatPrice } from '../lib/chibi';
+import { chibi, formatPrice } from '../lib/chibi';
 import { addCustomItem } from '../lib/cart';
+import { useApi } from '../lib/api';
+import { allowedIn, CHAR_FIELDS, describeChar, findOption, layersFor, quoteDesign } from '../../shared/customizer';
+
+const START_CHARS = [
+  chibi({ hair: 'long', outfit: 'aodai', outfitColor: '#c9484f', accessory: 'bouquet' }),
+  chibi({ skin: '#e8b896', hair: 'short', outfit: 'vest', outfitColor: '#34405a', face: 'wink' }),
+];
+
+// Swaps any choice the admin has hidden, or limited to other boxes, for the first one still offered.
+function fitChar(config, box, c) {
+  const out = { ...c };
+  for (const [field, grp] of CHAR_FIELDS) {
+    if (field === 'accessory' && c.accessory === 'none') continue;
+    const opt = findOption(config, grp, c[field]);
+    if (!opt || !allowedIn(opt, box)) {
+      const first = config.groups[grp].find((o) => allowedIn(o, box));
+      out[field] = first ? first.code : field === 'accessory' ? 'none' : c[field];
+    }
+  }
+  for (const t of ['glasses', 'beard']) {
+    const opt = findOption(config, 'gl', t);
+    if (!opt || !allowedIn(opt, box)) out[t] = false;
+  }
+  return out;
+}
+
+const STAGE_PANEL = {
+  wood: 'position:absolute;left:10%;right:10%;bottom:12%;height:44%;border-radius:20px;background:rgba(214,160,87,0.28);border:6px solid rgba(214,160,87,0.55)',
+  mica: 'position:absolute;left:10%;right:10%;bottom:12%;height:44%;border-radius:20px;background:rgba(255,255,255,0.45);border:1px solid rgba(255,255,255,0.9);box-shadow:0 8px 32px rgba(42,31,45,0.12)',
+  wedding:
+    'position:absolute;left:10%;right:10%;bottom:12%;height:44%;border-radius:20px;background:rgba(253,153,153,0.25);border:6px solid #fd9999',
+};
 
 export default function Customizer() {
   const [params] = useSearchParams();
-  const startBox = ['wood', 'mica', 'wedding'].includes(params.get('hop')) ? params.get('hop') : 'wood';
+  // A design to start from: "Đặt lại" in the account page passes one in the navigation state.
+  const again = useLocation().state?.design;
   const [state, setState] = useMergedState({
     step: 1,
-    box: startBox,
-    count: 2,
+    box: again?.box || params.get('hop') || 'wood',
+    count: again?.count || 2,
     active: 0,
-    note: '',
+    note: again?.note || '',
     added: false,
-    chars: [
-      {
-        skin: '#f7d9c4',
-        hair: 'long',
-        hairColor: '#2f2430',
-        face: 'smile',
-        glasses: false,
-        beard: false,
-        outfit: 'aodai',
-        outfitColor: '#c9484f',
-        accessory: 'bouquet',
-      },
-      {
-        skin: '#e8b896',
-        hair: 'short',
-        hairColor: '#2f2430',
-        face: 'wink',
-        glasses: false,
-        beard: false,
-        outfit: 'vest',
-        outfitColor: '#34405a',
-        accessory: 'none',
-      },
-    ],
+    chars: again ? [chibi(again.chars[0]), chibi(again.chars[1] || START_CHARS[1])] : START_CHARS,
   });
+  const { data: config, error: configError } = useApi('/customizer');
+  const panelRef = useRef(null);
+
+  if (!config) {
+    return (
+      <div className="cat">
+        <SiteHeader active="custom" />
+        <main className="wrap" style={{ paddingBlock: '48px 96px' }}>
+          <p className="bsm mut" role={configError ? 'alert' : 'status'}>
+            {configError ? configError.message : 'Đang tải trình thiết kế...'}
+          </p>
+        </main>
+        <SiteFooter />
+      </div>
+    );
+  }
 
   const st = state;
-  const BOX = {
-    wood: { label: 'Hộp gỗ chibi', base: 289000, wash: '#fbeab4', desc: 'Hộp gỗ, nét mộc và ấm.' },
-    mica: {
-      label: 'Hộp mica chibi',
-      base: 349000,
-      wash: '#d6ebfa',
-      desc: 'Hộp mica trong, nhìn rõ nhân vật.',
-    },
-    wedding: { label: 'Bộ quà cưới', base: 489000, wash: '#fddede', desc: 'Bộ quà dành cho ngày cưới.' },
-  };
-  const SECOND = 120000,
-    GL = 10000,
-    BE = 10000;
-  const OUT = { shirt: 0, aodai: 20000, vest: 20000, wedding: 30000 };
-  const ACC = { none: 0, bouquet: 25000, bow: 10000, flower: 10000 };
-  const L = {
-    hair: { short: 'tóc ngắn', long: 'tóc dài', bob: 'tóc bob', bun: 'búi cao' },
-    face: { smile: 'cười nhẹ', laugh: 'cười tươi', wink: 'nháy mắt', calm: 'điềm đạm' },
-    outfit: { shirt: 'Áo sơ mi', aodai: 'Áo dài', vest: 'Vest', wedding: 'Váy cưới' },
-    acc: { none: 'Không phụ kiện', bouquet: 'Bó hoa', bow: 'Nơ cổ', flower: 'Hoa cài tóc' },
-    skin: { '#fde3d0': 'Sáng', '#f7d9c4': 'Be', '#e8b896': 'Nâu sáng', '#c58c63': 'Nâu' },
-    hc: { '#2f2430': 'đen', '#5a3a2a': 'nâu', '#d9b06a': 'vàng', '#e88fa0': 'hồng', '#8a8290': 'xám tro' },
-    oc: {
-      '#fd9999': 'hồng',
-      '#c9484f': 'đỏ',
-      '#fffaf0': 'kem',
-      '#cbbdf0': 'tím nhạt',
-      '#9ccbee': 'xanh nhạt',
-      '#34405a': 'xanh navy',
-      '#3b2f3e': 'đen',
-      '#f2d27a': 'vàng bơ',
-      '#9fd6c4': 'bạc hà',
-    },
-  };
+  const box = config.boxes.find((b) => b.code === st.box) || config.boxes[0];
+  const chars = st.chars.map((c) => fitChar(config, box.code, c));
+  const withLayers = (c) => ({ ...c, layers: layersFor(config, box.code, c) });
+  const quote = quoteDesign(config, { box: box.code, count: st.count, chars });
   const step = st.step;
-  const cfg = st.chars[st.active];
-  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+  const cfg = chars[st.active];
   const setCfg = (k, v) =>
     setState({
-      chars: st.chars.map((c, i) => (i === st.active ? Object.assign({}, c, { [k]: v }) : c)),
+      chars: chars.map((c, i) => (i === st.active ? Object.assign({}, c, { [k]: v }) : c)),
       added: false,
     });
-  const withCfg = (k, v) => Object.assign({}, cfg, { [k]: v });
+  const withCfg = (k, v) => withLayers(Object.assign({}, cfg, { [k]: v }));
+  const offered = (grp) => config.groups[grp].filter((o) => allowedIn(o, box.code));
   const styleSec = (title, key, list, crop) => ({
     title,
     isStyle: true,
@@ -117,95 +113,24 @@ export default function Customizer() {
       pick: () => setCfg(key, o[0]),
     })),
   });
+  const styles = (grp) => offered(grp).map((o) => [o.code, o.label, o.price]);
+  const swatches = (grp) => offered(grp).map((o) => [o.code, o.label]);
+  const toggle = (code, none) => {
+    const opt = offered('gl').find((o) => o.code === code);
+    return opt ? [[false, none], [true, opt.label, opt.price]] : null;
+  };
   const sec2 = [
-    swatchSec('Tông da', 'skin', [
-      ['#fde3d0', 'Sáng'],
-      ['#f7d9c4', 'Be'],
-      ['#e8b896', 'Nâu sáng'],
-      ['#c58c63', 'Nâu'],
-    ]),
-    styleSec(
-      'Kiểu tóc',
-      'hair',
-      [
-        ['short', 'Tóc ngắn'],
-        ['long', 'Tóc dài'],
-        ['bob', 'Tóc bob'],
-        ['bun', 'Búi cao'],
-      ],
-      'head',
-    ),
-    swatchSec('Màu tóc', 'hairColor', [
-      ['#2f2430', 'Đen'],
-      ['#5a3a2a', 'Nâu'],
-      ['#d9b06a', 'Vàng'],
-      ['#e88fa0', 'Hồng'],
-      ['#8a8290', 'Xám tro'],
-    ]),
-    styleSec(
-      'Biểu cảm',
-      'face',
-      [
-        ['smile', 'Cười nhẹ'],
-        ['laugh', 'Cười tươi'],
-        ['wink', 'Nháy mắt'],
-        ['calm', 'Điềm đạm'],
-      ],
-      'head',
-    ),
-    styleSec(
-      'Kính',
-      'glasses',
-      [
-        [false, 'Không kính'],
-        [true, 'Kính tròn', GL],
-      ],
-      'head',
-    ),
-    styleSec(
-      'Râu',
-      'beard',
-      [
-        [false, 'Không râu'],
-        [true, 'Có râu', BE],
-      ],
-      'head',
-    ),
-  ];
+    swatchSec('Tông da', 'skin', swatches('skin')),
+    styleSec('Kiểu tóc', 'hair', styles('hair'), 'head'),
+    swatchSec('Màu tóc', 'hairColor', swatches('hairColor')),
+    styleSec('Biểu cảm', 'face', styles('face'), 'head'),
+    toggle('glasses', 'Không kính') && styleSec('Kính', 'glasses', toggle('glasses', 'Không kính'), 'head'),
+    toggle('beard', 'Không râu') && styleSec('Râu', 'beard', toggle('beard', 'Không râu'), 'head'),
+  ].filter(Boolean);
   const sec3 = [
-    styleSec(
-      'Trang phục',
-      'outfit',
-      [
-        ['shirt', 'Áo sơ mi'],
-        ['aodai', 'Áo dài', OUT.aodai],
-        ['vest', 'Vest', OUT.vest],
-        ['wedding', 'Váy cưới', OUT.wedding],
-      ],
-      'body',
-    ),
-    swatchSec('Màu trang phục', 'outfitColor', [
-      ['#fd9999', 'Hồng'],
-      ['#c9484f', 'Đỏ'],
-      ['#fffaf0', 'Kem'],
-      ['#cbbdf0', 'Tím nhạt'],
-      ['#9ccbee', 'Xanh nhạt'],
-      ['#34405a', 'Navy'],
-      ['#3b2f3e', 'Đen'],
-      ['#f2d27a', 'Vàng bơ'],
-      ['#9fd6c4', 'Bạc hà'],
-    ]),
-    styleSec(
-      'Phụ kiện',
-      'accessory',
-      [
-        ['none', 'Không có'],
-        ['bouquet', 'Bó hoa', ACC.bouquet],
-        ['bow', 'Nơ cổ', ACC.bow],
-        ['flower', 'Hoa cài tóc', ACC.flower],
-      ],
-      'body',
-    ),
+    styleSec('Trang phục', 'outfit', styles('outfit'), 'body'),
+    swatchSec('Màu trang phục', 'outfitColor', swatches('outfitColor')),
+    styleSec('Phụ kiện', 'accessory', [['none', 'Không có'], ...styles('acc')], 'body'),
   ];
   const titles = [
     'Chọn sản phẩm nền',
@@ -219,69 +144,30 @@ export default function Customizer() {
     'Chọn trang phục, màu sắc và phụ kiện cầm tay hoặc trang trí.',
     'Viết điều shop cần lưu ý, rồi xem lại toàn bộ thiết kế.',
   ];
-  const panelRef = useRef(null);
   const go = (n) => {
     setState({ step: Math.max(1, Math.min(4, n)), added: false });
     if (window.matchMedia('(max-width: 1040px)').matches) {
       panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   };
-  const active = st.chars.slice(0, st.count);
-  const desc = (c) =>
-    cap(
-      L.hair[c.hair] +
-        ' ' +
-        L.hc[c.hairColor] +
-        ', ' +
-        L.outfit[c.outfit].toLowerCase() +
-        ' ' +
-        L.oc[c.outfitColor] +
-        (c.accessory !== 'none' ? ', ' + L.acc[c.accessory].toLowerCase() : ''),
-    );
-  const lines = [{ label: BOX[st.box].label, price: formatPrice(BOX[st.box].base) }];
-  let total = BOX[st.box].base;
-  if (st.count === 2) {
-    lines.push({ label: 'Nhân vật thứ hai', price: '+' + formatPrice(SECOND) });
-    total += SECOND;
-  }
-  active.forEach((c, i) => {
-    const nm = st.count === 2 ? 'Nhân vật ' + (i + 1) + ': ' : '';
-    if (OUT[c.outfit]) {
-      lines.push({ label: nm + L.outfit[c.outfit], price: '+' + formatPrice(OUT[c.outfit]) });
-      total += OUT[c.outfit];
-    }
-    if (ACC[c.accessory]) {
-      lines.push({ label: nm + L.acc[c.accessory], price: '+' + formatPrice(ACC[c.accessory]) });
-      total += ACC[c.accessory];
-    }
-    if (c.glasses) {
-      lines.push({ label: nm + 'Kính tròn', price: '+' + formatPrice(GL) });
-      total += GL;
-    }
-    if (c.beard) {
-      lines.push({ label: nm + 'Râu', price: '+' + formatPrice(BE) });
-      total += BE;
-    }
-  });
-  const stageBg = { wood: '#fbeab4', mica: '#d6ebfa', wedding: '#fddede' }[st.box];
-  const panelStyle = {
-    wood: 'position:absolute;left:10%;right:10%;bottom:12%;height:44%;border-radius:20px;background:rgba(214,160,87,0.28);border:6px solid rgba(214,160,87,0.55)',
-    mica: 'position:absolute;left:10%;right:10%;bottom:12%;height:44%;border-radius:20px;background:rgba(255,255,255,0.45);border:1px solid rgba(255,255,255,0.9);box-shadow:0 8px 32px rgba(42,31,45,0.12)',
-    wedding:
-      'position:absolute;left:10%;right:10%;bottom:12%;height:44%;border-radius:20px;background:rgba(253,153,153,0.25);border:6px solid #fd9999',
-  }[st.box];
+  const active = chars.slice(0, st.count);
+  const label = (grp, code) => findOption(config, grp, code)?.label ?? '';
+  const lines = quote.error ? [] : quote.lines.map((l) => ({ label: l.label, price: (l.extra ? '+' : '') + formatPrice(l.price) }));
+  const stageBg = box.wash || '#fbeab4';
+  const panelStyle = STAGE_PANEL[box.code] || STAGE_PANEL.mica;
   const stepDefs = ['Sản phẩm nền', 'Khuôn mặt và tóc', 'Trang phục', 'Ghi chú và xem lại'];
   const addCart = () => {
-    if (st.added) return;
+    if (st.added || quote.error) return;
     addCustomItem({
-      title: BOX[st.box].label,
+      title: box.label,
       sub: st.count + ' nhân vật',
-      price: total,
+      price: quote.total,
       wash: stageBg,
-      a: st.chars[0],
-      b: st.count === 2 ? st.chars[1] : undefined,
-      lines: active.map((c, i) => (st.count === 2 ? 'Nhân vật ' + (i + 1) + ': ' : '') + desc(c)),
+      a: withLayers(chars[0]),
+      b: st.count === 2 ? withLayers(chars[1]) : undefined,
+      lines: quote.descriptions,
       note: st.note,
+      design: { box: box.code, count: st.count, chars: active, note: st.note },
     });
     setState({ added: true });
   };
@@ -323,22 +209,37 @@ export default function Customizer() {
       pick: () => setState({ active: i }),
     })),
     sections: step === 2 ? sec2 : sec3,
-    boxes: Object.keys(BOX).map((id) => ({
-      label: BOX[id].label,
-      desc: BOX[id].desc,
-      wash: BOX[id].wash,
-      price: formatPrice(BOX[id].base),
-      on: st.box === id,
-      cls: st.box === id ? 'tile on' : 'tile',
-      pick: () => setState({ box: id, added: false }),
+    boxes: config.boxes.map((b) => ({
+      label: b.label,
+      desc: b.description,
+      wash: b.wash || '#f6efe6',
+      price: formatPrice(b.price),
+      on: box.code === b.code,
+      cls: box.code === b.code ? 'tile on' : 'tile',
+      pick: () => setState({ box: b.code, added: false }),
     })),
     counts: [1, 2].map((n) => ({
       label: n + ' nhân vật',
       hasExtra: n === 2,
-      extra: '+' + formatPrice(SECOND),
+      extra: '+' + formatPrice(config.secondPrice),
       on: st.count === n,
       cls: st.count === n ? 'tile on' : 'tile',
       pick: () => setState({ count: n, active: 0, added: false }),
+    })),
+    presets: config.presets.map((p) => ({
+      label: p.name,
+      sub: label('box', p.box) + ', ' + p.count + ' nhân vật',
+      a: chibi(p.chars[0]),
+      b: p.count === 2 ? chibi(p.chars[1]) : null,
+      pick: () =>
+        setState({
+          box: p.box,
+          count: p.count,
+          chars: [chibi(p.chars[0]), chibi(p.chars[1] || chars[1])],
+          active: 0,
+          added: false,
+          step: 2,
+        }),
     })),
     note: st.note,
     onNote: (e) => setState({ note: e.target.value }),
@@ -346,15 +247,18 @@ export default function Customizer() {
       .map((c, i) => ({
         title: st.count === 2 ? 'Nhân vật ' + (i + 1) : 'Nhân vật',
         rows: [
-          { k: 'Tông da', v: L.skin[c.skin] },
-          { k: 'Tóc', v: cap(L.hair[c.hair]) + ' ' + L.hc[c.hairColor] },
-          { k: 'Biểu cảm', v: cap(L.face[c.face]) },
+          { k: 'Tông da', v: label('skin', c.skin) },
+          { k: 'Tóc', v: label('hair', c.hair) + ' ' + label('hairColor', c.hairColor).toLowerCase() },
+          { k: 'Biểu cảm', v: label('face', c.face) },
           {
             k: 'Kính và râu',
-            v: (c.glasses ? 'Kính tròn' : 'Không kính') + ', ' + (c.beard ? 'có râu' : 'không râu'),
+            v:
+              (c.glasses ? label('gl', 'glasses') : 'Không kính') +
+              ', ' +
+              (c.beard ? label('gl', 'beard').toLowerCase() : 'không râu'),
           },
-          { k: 'Trang phục', v: L.outfit[c.outfit] + ' ' + L.oc[c.outfitColor] },
-          { k: 'Phụ kiện', v: L.acc[c.accessory] },
+          { k: 'Trang phục', v: label('outfit', c.outfit) + ' ' + label('outfitColor', c.outfitColor).toLowerCase() },
+          { k: 'Phụ kiện', v: c.accessory === 'none' ? 'Không phụ kiện' : label('acc', c.accessory) },
         ],
       }))
       .concat([
@@ -368,18 +272,19 @@ export default function Customizer() {
     notLast: step < 4,
     addCart,
     added: st.added,
+    quoteError: quote.error,
     stageBg,
     panelStyle,
     charW: st.count === 2 ? '36%' : '44%',
-    a: st.chars[0],
-    b: st.chars[1],
+    a: withLayers(chars[0]),
+    b: withLayers(chars[1]),
     hasB: st.count === 2,
-    boxLabel: BOX[st.box].label,
-    brief: [{ k: 'Sản phẩm', v: BOX[st.box].label + ', ' + st.count + ' nhân vật' }].concat(
-      active.map((c, i) => ({ k: st.count === 2 ? 'Nhân vật ' + (i + 1) : 'Nhân vật', v: desc(c) })),
+    boxLabel: box.label,
+    brief: [{ k: 'Sản phẩm', v: box.label + ', ' + st.count + ' nhân vật' }].concat(
+      active.map((c, i) => ({ k: st.count === 2 ? 'Nhân vật ' + (i + 1) : 'Nhân vật', v: describeChar(config, c) })),
     ),
     lines,
-    total: formatPrice(total),
+    total: quote.error ? '—' : formatPrice(quote.total),
   };
 
   return (
@@ -522,6 +427,39 @@ export default function Customizer() {
                         ))}
                       </div>
                     </div>
+                    {vals.presets.length ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                        <span className="flabel">Hoặc bắt đầu từ mẫu gợi ý</span>
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(min(150px, 100%), 1fr))',
+                            gap: '12px',
+                          }}
+                        >
+                          {vals.presets.map((p, index) => (
+                            <button
+                              key={index}
+                              type="button"
+                              className="tile"
+                              onClick={p.pick}
+                              style={{ alignItems: 'flex-start', textAlign: 'left', gap: '8px', padding: '12px' }}
+                            >
+                              <span style={{ display: 'flex', gap: '4px' }}>
+                                <MiniChibi cfg={p.a} crop="head" />
+                                {p.b ? <MiniChibi cfg={p.b} crop="head" /> : null}
+                              </span>
+                              <span className="bsm" style={{ fontWeight: '600' }}>
+                                {p.label}
+                              </span>
+                              <span className="cap" style={{ fontWeight: '400' }}>
+                                {p.sub}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div>
                 </>
               ) : null}
@@ -708,6 +646,15 @@ export default function Customizer() {
                   </>
                 ) : null}
               </div>
+              {vals.quoteError ? (
+                <p
+                  className="bsm"
+                  role="alert"
+                  style={{ background: 'var(--danger-wash)', color: 'var(--danger)', borderRadius: '12px', padding: '12px 16px' }}
+                >
+                  {vals.quoteError}
+                </p>
+              ) : null}
               {vals.added ? (
                 <>
                   <div

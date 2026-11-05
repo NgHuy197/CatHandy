@@ -1,119 +1,31 @@
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import SiteHeader from '../components/SiteHeader';
 import Chibi from '../components/Chibi';
 import SiteFooter from '../components/SiteFooter';
 import Icon from '../components/Icon';
 import useMergedState from '../lib/useMergedState';
-import { chibi, formatPrice } from '../lib/chibi';
+import { formatPrice } from '../lib/chibi';
 import { addReadyItem } from '../lib/cart';
+import { useApi } from '../lib/api';
+import { toCard } from '../lib/products';
+import { toggleWish, useWishlist } from '../lib/wishlist';
 
 export default function Catalog() {
-  const [state, setState] = useMergedState({ q: '', cat: 'all', mat: 'all', price: 'all', stock: 'all', showFilters: false });
+  const [state, setState] = useMergedState({
+    q: '',
+    cat: 'all',
+    mat: 'all',
+    price: 'all',
+    stock: 'all',
+    sort: 'featured',
+    showFilters: false,
+  });
+  const navigate = useNavigate();
+  const { data, error, loading } = useApi('/products');
+  const wish = useWishlist();
 
   const st = state;
-  const all = [
-    {
-      title: 'Cặp đôi áo dài',
-      sub: 'Hộp gỗ chibi, 2 nhân vật',
-      cat: 'go',
-      mat: 'Gỗ',
-      price: 389000,
-      ready: true,
-      wash: '#fddede',
-      a: chibi({ hair: 'long', outfitColor: '#c9484f' }),
-      b: chibi({ skin: '#e8b896', outfitColor: '#34405a' }),
-    },
-    {
-      title: 'Chibi vest xanh',
-      sub: 'Hộp mica chibi, 1 nhân vật',
-      cat: 'nam',
-      mat: 'Mica',
-      price: 289000,
-      ready: true,
-      wash: '#d6ebfa',
-      a: chibi({ skin: '#e8b896', outfit: 'vest', outfitColor: '#34405a', glasses: true }),
-    },
-    {
-      title: 'Bé hoa tặng mẹ',
-      sub: 'Hộp gỗ chibi, 1 nhân vật',
-      cat: 'go',
-      mat: 'Gỗ',
-      price: 259000,
-      ready: true,
-      wash: '#e8e0f8',
-      a: chibi({ hair: 'bun', outfit: 'shirt', outfitColor: '#cbbdf0', accessory: 'bouquet' }),
-    },
-    {
-      title: 'Bộ cô dâu chú rể mini',
-      sub: 'Quà cưới, 2 nhân vật',
-      cat: 'cuoi',
-      mat: 'Gỗ',
-      price: 549000,
-      ready: true,
-      wash: '#fbeab4',
-      a: chibi({ hair: 'long', outfit: 'wedding', outfitColor: '#fffaf0' }),
-      b: chibi({ outfit: 'vest', outfitColor: '#3b2f3e' }),
-    },
-    {
-      title: 'Chibi mica áo dài',
-      sub: 'Hộp mica chibi, 1 nhân vật',
-      cat: 'mica',
-      mat: 'Mica',
-      price: 329000,
-      ready: false,
-      wash: '#d3efe9',
-      a: chibi({ hair: 'bob', outfitColor: '#9ccbee', accessory: 'bow' }),
-    },
-    {
-      title: 'Cặp đôi mica trong',
-      sub: 'Hộp mica chibi, 2 nhân vật',
-      cat: 'mica',
-      mat: 'Mica',
-      price: 449000,
-      ready: false,
-      wash: '#d6ebfa',
-      a: chibi({ hair: 'long', outfit: 'shirt', outfitColor: '#fd9999' }),
-      b: chibi({ skin: '#fde3d0', outfit: 'shirt', outfitColor: '#9fd6c4', glasses: true }),
-    },
-    {
-      title: 'Bộ quà cưới cao cấp',
-      sub: 'Hộp quà cưới, 2 nhân vật',
-      cat: 'cuoi',
-      mat: 'Gỗ',
-      price: 689000,
-      ready: false,
-      wash: '#fddede',
-      a: chibi({ hair: 'bun', outfit: 'wedding', outfitColor: '#fffaf0', accessory: 'bouquet' }),
-      b: chibi({ outfit: 'vest', outfitColor: '#34405a' }),
-    },
-    {
-      title: 'Chibi râu kính',
-      sub: 'Hộp gỗ chibi, 1 nhân vật',
-      cat: 'nam',
-      mat: 'Gỗ',
-      price: 299000,
-      ready: false,
-      wash: '#e8e0f8',
-      a: chibi({
-        skin: '#c58c63',
-        outfit: 'shirt',
-        outfitColor: '#f2d27a',
-        beard: true,
-        glasses: true,
-        face: 'laugh',
-      }),
-    },
-    {
-      title: 'Hoa cài tóc chibi',
-      sub: 'Phụ kiện quà tặng',
-      cat: 'phukien',
-      mat: 'Khác',
-      price: 59000,
-      ready: true,
-      wash: '#fbeab4',
-      a: chibi({ hair: 'long', hairColor: '#5a3a2a', outfit: 'shirt', accessory: 'flower' }),
-    },
-  ];
+  const all = (data || []).map(toCard);
   const CATS = [
     ['all', 'Tất cả'],
     ['go', 'Hộp gỗ chibi'],
@@ -154,19 +66,29 @@ export default function Catalog() {
         (st.cat === 'all' || p.cat === st.cat) &&
         (st.mat === 'all' || p.mat === st.mat) &&
         (st.price === 'all' ||
-          (st.price === 'lo' && p.price < 300000) ||
-          (st.price === 'mid' && p.price >= 300000 && p.price <= 500000) ||
-          (st.price === 'hi' && p.price > 500000)) &&
+          (st.price === 'lo' && p.fromPrice < 300000) ||
+          (st.price === 'mid' && p.fromPrice >= 300000 && p.fromPrice <= 500000) ||
+          (st.price === 'hi' && p.fromPrice > 500000)) &&
         (st.stock === 'all' || (st.stock === 'ready' && p.ready) || (st.stock === 'custom' && !p.ready)),
     )
+    .sort((x, y) => (st.sort === 'asc' ? x.fromPrice - y.fromPrice : st.sort === 'desc' ? y.fromPrice - x.fromPrice : 0))
     .map((p) =>
       Object.assign({}, p, {
         hasB: !!p.b,
-        customLink: '/tao-chibi?hop=' + (p.mat === 'Mica' ? 'mica' : p.cat === 'cuoi' ? 'wedding' : 'wood'),
+        href: '/san-pham/' + p.slug,
+        customLink: '/tao-chibi?hop=' + (p.boxCode || 'wood'),
         custom: !p.ready,
-        priceText: p.ready ? formatPrice(p.price) : 'Từ ' + formatPrice(p.price),
+        priceText: p.ready && !p.hasVariants ? formatPrice(p.fromPrice) : 'Từ ' + formatPrice(p.fromPrice),
         stockLabel: p.ready ? 'Có sẵn' : 'Đặt làm theo ý bạn',
         tagCls: p.ready ? 'tag t-ok' : 'tag t-butter',
+        // Products with colours or sizes are chosen on their own page.
+        add: () =>
+          p.hasVariants
+            ? navigate('/san-pham/' + p.slug)
+            : addReadyItem({ slug: p.slug, title: p.title, sub: p.sub, price: p.price, wash: p.wash, a: p.a, b: p.b }),
+        addLabel: p.hasVariants ? 'Chọn mẫu' : 'Thêm vào giỏ',
+        wished: wish.has(p.slug),
+        wish: () => (wish.signedIn ? toggleWish(p.slug).catch(() => {}) : navigate('/dang-nhap?next=/san-pham')),
       }),
     );
   const vals = {
@@ -179,8 +101,10 @@ export default function Catalog() {
     reset: () => setState({ q: '', cat: 'all', mat: 'all', price: 'all', stock: 'all' }),
     items: shown,
     hasItems: shown.length > 0,
-    noItems: shown.length === 0,
-    countText: 'Hiển thị ' + shown.length + ' sản phẩm',
+    noItems: !!data && shown.length === 0,
+    countText: error ? error.message : loading && !data ? 'Đang tải sản phẩm...' : 'Hiển thị ' + shown.length + ' sản phẩm',
+    sort: st.sort,
+    onSort: (e) => setState({ sort: e.target.value }),
     filterOn: ['cat', 'mat', 'price', 'stock'].filter((k) => st[k] !== 'all').length,
     showFilters: st.showFilters,
     toggleFilters: () => setState({ showFilters: !st.showFilters }),
@@ -311,10 +235,12 @@ export default function Catalog() {
                   id="sort"
                   className="input"
                   style={{ width: 'auto', paddingRight: '32px', minWidth: '180px' }}
+                  value={vals.sort}
+                  onChange={vals.onSort}
                 >
-                  <option>Nổi bật</option>
-                  <option>Giá tăng dần</option>
-                  <option>Giá giảm dần</option>
+                  <option value="featured">Nổi bật</option>
+                  <option value="asc">Giá tăng dần</option>
+                  <option value="desc">Giá giảm dần</option>
                 </select>
               </div>
             </div>
@@ -328,7 +254,7 @@ export default function Catalog() {
                       style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px' }}
                     >
                       <Link
-                        to="/san-pham/cap-doi-ao-dai"
+                        to={p.href}
                         style={{
                           position: 'relative',
                           background: p.wash,
@@ -372,13 +298,8 @@ export default function Catalog() {
                       <div className="prod-actions" style={{ display: 'flex', gap: '8px', padding: '0 8px 8px' }}>
                         {p.ready ? (
                           <>
-                            <button
-                              type="button"
-                              className="btn btn-ink"
-                              style={{ flex: '1' }}
-                              onClick={() => addReadyItem(p)}
-                            >
-                              Thêm vào giỏ
+                            <button type="button" className="btn btn-ink" style={{ flex: '1' }} onClick={p.add}>
+                              {p.addLabel}
                             </button>
                           </>
                         ) : null}
@@ -391,8 +312,10 @@ export default function Catalog() {
                         ) : null}
                         <button
                           type="button"
-                          className="btn btn-line btn-icon"
-                          aria-label="Lưu vào yêu thích"
+                          className={p.wished ? 'btn btn-pink btn-icon' : 'btn btn-line btn-icon'}
+                          aria-label={p.wished ? 'Bỏ khỏi yêu thích' : 'Lưu vào yêu thích'}
+                          aria-pressed={p.wished}
+                          onClick={p.wish}
                         >
                           <Icon name="heart" />
                         </button>

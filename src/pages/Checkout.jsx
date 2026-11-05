@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import SiteHeader from '../components/SiteHeader';
 import Chibi from '../components/Chibi';
@@ -5,18 +6,26 @@ import SiteFooter from '../components/SiteFooter';
 import Icon from '../components/Icon';
 import useMergedState from '../lib/useMergedState';
 import { cartTotal, placeOrder, useCart } from '../lib/cart';
+import { useAuth } from '../lib/auth';
 import { formatPrice } from '../lib/chibi';
 
+const fromUser = (u) => ({ name: u?.name || '', phone: u?.phone || '', addr: u?.address || '' });
+
 export default function Checkout() {
+  const { user } = useAuth();
   const [state, setState] = useMergedState({
-    member: true,
-    name: 'Huy',
-    phone: '[SĐT đã lưu]',
-    addr: '[Địa chỉ mặc định đã lưu]',
+    member: !!user,
+    ...fromUser(user),
     note: '',
     sending: false,
     error: '',
   });
+
+  // The account may finish loading after the page opens; prefill once it does.
+  useEffect(() => {
+    if (user) setState({ member: true, ...fromUser(user) });
+    else setState({ member: false });
+  }, [user, setState]);
 
   const navigate = useNavigate();
   const { items: cart } = useCart();
@@ -28,8 +37,10 @@ export default function Checkout() {
     memberCls: m ? 'chip on' : 'chip',
     guestCls: m ? 'chip' : 'chip on',
     setMember: () =>
-      setState({ member: true, name: 'Huy', phone: '[SĐT đã lưu]', addr: '[Địa chỉ mặc định đã lưu]' }),
+      user ? setState({ member: true, ...fromUser(user) }) : navigate('/dang-nhap?next=/dat-hang'),
     setGuest: () => setState({ member: false, name: '', phone: '', addr: '' }),
+    memberName: user?.name || user?.email || '',
+    hasSaved: !!(user?.phone || user?.address),
     nameVal: st.name,
     phoneVal: st.phone,
     addrVal: st.addr,
@@ -123,8 +134,9 @@ export default function Checkout() {
                   >
                     <Icon name="check" />
                     <p className="bsm">
-                      Đã điền sẵn thông tin nhận hàng mặc định từ tài khoản của Huy. Bạn có thể sửa cho đơn
-                      này.
+                      {vals.hasSaved
+                        ? `Đã điền sẵn thông tin nhận hàng mặc định từ tài khoản của ${vals.memberName}. Bạn có thể sửa cho đơn này.`
+                        : `Đơn này sẽ được lưu vào tài khoản của ${vals.memberName}, kèm thông tin nhận hàng để lần sau tự điền.`}
                     </p>
                   </div>
                 </>

@@ -15,6 +15,7 @@ import AdminOrders from './pages/AdminOrders';
 import AdminCustomizer from './pages/AdminCustomizer';
 import AdminCustomers from './pages/AdminCustomers';
 import AdminProducts from './pages/AdminProducts';
+import RequireAdmin from './components/RequireAdmin';
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -39,11 +40,11 @@ export default function App() {
         <Route path="/dang-nhap" element={<Auth />} />
         <Route path="/tai-khoan" element={<Account />} />
         <Route path="/tra-cuu" element={<Track />} />
-        <Route path="/admin" element={<AdminDashboard />} />
-        <Route path="/admin/don-hang" element={<AdminOrders />} />
-        <Route path="/admin/tuy-chon" element={<AdminCustomizer />} />
-        <Route path="/admin/khach-hang" element={<AdminCustomers />} />
-        <Route path="/admin/san-pham" element={<AdminProducts />} />
+        <Route path="/admin" element={<RequireAdmin><AdminDashboard /></RequireAdmin>} />
+        <Route path="/admin/don-hang" element={<RequireAdmin><AdminOrders /></RequireAdmin>} />
+        <Route path="/admin/tuy-chon" element={<RequireAdmin><AdminCustomizer /></RequireAdmin>} />
+        <Route path="/admin/khach-hang" element={<RequireAdmin><AdminCustomers /></RequireAdmin>} />
+        <Route path="/admin/san-pham" element={<RequireAdmin><AdminProducts /></RequireAdmin>} />
       </Routes>
     </>
   );

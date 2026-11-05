@@ -5,117 +5,64 @@ import Icon from '../components/Icon';
 import useMergedState from '../lib/useMergedState';
 import css from '../lib/css';
 import reveal from '../lib/reveal';
+import { useApi } from '../lib/api';
+import { formatPrice } from '../lib/chibi';
+import { formatDate } from '../../shared/format';
+import { statusInfo } from '../../shared/orders';
+
+const WASH = ['#fddede', '#d3efe9', '#fbeab4', '#e8e0f8'];
+const initial = (s) => (s || '?').trim().split(/\s+/).pop().charAt(0).toUpperCase();
 
 export default function AdminCustomers() {
   const detailRef = useRef(null);
-  const [state, setState] = useMergedState({ sel: 'c3' });
+  const [state, setState] = useMergedState({ sel: null, q: '' });
+  const list = useApi('/admin/customers');
 
   const st = state;
-  const D = [
-    {
-      id: 'c1',
-      name: 'Khách A',
-      phone: '[SĐT khách A]',
-      orders: 1,
-      spent: '474.000đ',
-      login: 'Mua nhanh',
-      tagCls: 'tag t-sand',
-      wash: '#fddede',
-      history: [
-        {
-          id: 'CH-0003',
-          what: 'Cặp đôi áo dài, hộp gỗ chibi',
-          total: '474.000đ',
-          status: 'Mới',
-          tagCls: 'tag t-danger',
-        },
-      ],
-    },
-    {
-      id: 'c2',
-      name: 'Khách B',
-      phone: '[SĐT khách B]',
-      orders: 2,
-      spent: '738.000đ',
-      login: 'Có tài khoản',
-      tagCls: 'tag t-ok',
-      wash: '#d3efe9',
-      history: [
-        {
-          id: 'CH-0002',
-          what: 'Chibi hộp mica, 1 nhân vật',
-          total: '369.000đ',
-          status: 'Đang làm đồ',
-          tagCls: 'tag t-butter',
-        },
-        {
-          id: 'CH-00xx',
-          what: 'Chibi hộp mica, 1 nhân vật',
-          total: '369.000đ',
-          status: 'Đã giao VC',
-          tagCls: 'tag t-ok',
-        },
-      ],
-    },
-    {
-      id: 'c3',
-      name: 'Khách C',
-      phone: '[SĐT khách C]',
-      orders: 2,
-      spent: '1.312.000đ',
-      login: 'Có tài khoản',
-      tagCls: 'tag t-ok',
-      wash: '#fbeab4',
-      history: [
-        {
-          id: 'CH-0001',
-          what: 'Cặp đôi áo dài và Chibi vest xanh',
-          total: '763.000đ',
-          status: 'Chờ duyệt',
-          tagCls: 'tag t-powder',
-        },
-        {
-          id: 'CH-00xx',
-          what: 'Bộ cô dâu chú rể mini',
-          total: '549.000đ',
-          status: 'Đã giao VC',
-          tagCls: 'tag t-ok',
-        },
-      ],
-    },
-    {
-      id: 'c4',
-      name: 'Khách D',
-      phone: '[SĐT khách D]',
-      orders: 1,
-      spent: '689.000đ',
-      login: 'Có tài khoản',
-      tagCls: 'tag t-ok',
-      wash: '#e8e0f8',
-      history: [
-        {
-          id: 'CH-0000',
-          what: 'Bộ quà cưới cao cấp',
-          total: '689.000đ',
-          status: 'Đã giao VC',
-          tagCls: 'tag t-ok',
-        },
-      ],
-    },
-  ].map((d) => Object.assign({}, d, { initial: d.name.slice(-1) }));
-  const cur = D.filter((d) => d.id === st.sel)[0];
+  const q = st.q.trim().toLowerCase();
+  const all = (list.data || []).map((d, i) => ({
+    ...d,
+    wash: WASH[i % WASH.length],
+    initial: initial(d.name || d.email),
+    name: d.name || d.email || 'Khách chưa có tên',
+  }));
+  const digits = q.replace(/\D/g, '');
+  const D = all.filter(
+    (d) =>
+      !q ||
+      d.name.toLowerCase().includes(q) ||
+      (digits && (d.phone || '').includes(digits)) ||
+      (d.email || '').toLowerCase().includes(q),
+  );
+  const selKey = st.sel || D[0]?.key || null;
+  const detail = useApi(selKey ? '/admin/customers/' + encodeURIComponent(selKey) : null);
+  const row = all.find((d) => d.key === selKey);
+  const cur = detail.data && detail.data.key === selKey ? detail.data : null;
+
   const vals = {
     rows: D.map((d) =>
       Object.assign({}, d, {
-        on: d.id === st.sel,
+        on: d.key === selKey,
+        spentText: formatPrice(d.spent),
+        login: d.registered ? 'Có tài khoản' : 'Mua nhanh',
+        tagCls: d.registered ? 'tag t-ok' : 'tag t-sand',
         pick: () => {
-          setState({ sel: d.id });
+          setState({ sel: d.key });
           reveal(detailRef.current);
         },
-        style: d.id === st.sel ? 'background:#fdeeee' : '',
+        style: d.key === selKey ? 'background:#fdeeee' : '',
       }),
     ),
-    cur,
+    history: (cur?.orders || []).map((o) => {
+      const s = statusInfo(o.status);
+      return {
+        id: o.code,
+        what: o.items.map((it) => it.title).join(', ') + ', ' + formatDate(o.createdAt),
+        total: formatPrice(o.total),
+        status: s.short,
+        tagCls: s.tag,
+      };
+    }),
   };
 
   return (
@@ -162,174 +109,198 @@ export default function AdminCustomers() {
                 id="cq"
                 className="input"
                 style={{ paddingLeft: '44px' }}
-                placeholder="Tìm theo tên hoặc SĐT"
+                placeholder="Tìm theo tên, SĐT hoặc email"
+                value={st.q}
+                onChange={(e) => setState({ q: e.target.value })}
               />
             </div>
           </div>
         </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'flex-start' }}>
-          <section
-            className="card"
-            style={{ flex: '999 1 520px', minWidth: '0', padding: '0', overflow: 'hidden' }}
-          >
-            <div className="scroll-x">
-              <table className="tbl" style={{ minWidth: '560px' }}>
-                <thead>
-                  <tr>
-                    <th>Khách</th>
-                    <th>Số đơn</th>
-                    <th>Tổng chi tiêu</th>
-                    <th>Đăng nhập</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vals.rows.map((r, index) => (
-                    <tr key={index} style={css(r.style)}>
-                      <td>
-                        <button
-                          type="button"
-                          onClick={r.pick}
-                          aria-pressed={r.on}
-                          style={{
-                            background: 'none',
-                            border: '0',
-                            padding: '0',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            font: 'inherit',
-                            color: 'inherit',
-                            minHeight: '44px',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                          }}
-                        >
-                          <span
+        {list.error ? (
+          <p className="bsm" role="alert">
+            {list.error.message}
+          </p>
+        ) : null}
+        {list.data && !all.length ? <p className="bsm mut">Chưa có khách hàng nào.</p> : null}
+        {all.length ? (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px', alignItems: 'flex-start' }}>
+            <section
+              className="card"
+              style={{ flex: '999 1 520px', minWidth: '0', padding: '0', overflow: 'hidden' }}
+            >
+              <div className="scroll-x">
+                <table className="tbl" style={{ minWidth: '560px' }}>
+                  <thead>
+                    <tr>
+                      <th>Khách</th>
+                      <th>Số đơn</th>
+                      <th>Tổng chi tiêu</th>
+                      <th>Đăng nhập</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vals.rows.map((r) => (
+                      <tr key={r.key} style={css(r.style)}>
+                        <td>
+                          <button
+                            type="button"
+                            onClick={r.pick}
+                            aria-pressed={r.on}
                             style={{
-                              width: '40px',
-                              height: '40px',
-                              borderRadius: '50%',
-                              background: r.wash,
-                              display: 'grid',
-                              placeItems: 'center',
-                              font: "600 14px/20px 'Be Vietnam Pro', sans-serif",
-                              flex: 'none',
+                              background: 'none',
+                              border: '0',
+                              padding: '0',
+                              textAlign: 'left',
+                              cursor: 'pointer',
+                              font: 'inherit',
+                              color: 'inherit',
+                              minHeight: '44px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '12px',
                             }}
                           >
-                            {r.initial}
+                            <span
+                              style={{
+                                width: '40px',
+                                height: '40px',
+                                borderRadius: '50%',
+                                background: r.wash,
+                                display: 'grid',
+                                placeItems: 'center',
+                                font: "600 14px/20px 'Be Vietnam Pro', sans-serif",
+                                flex: 'none',
+                              }}
+                            >
+                              {r.initial}
+                            </span>
+                            <span style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontWeight: '600' }}>{r.name}</span>
+                              <span className="cap">{r.phone || r.email}</span>
+                            </span>
+                          </button>
+                        </td>
+                        <td>{r.orders}</td>
+                        <td style={{ fontWeight: '600' }}>{r.spentText}</td>
+                        <td>
+                          <span className={r.tagCls}>{r.login}</span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </section>
+            <aside
+              ref={detailRef}
+              className="detail-anchor"
+              style={{
+                flex: '1 1 340px',
+                maxWidth: '460px',
+                minWidth: '0',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '24px',
+              }}
+            >
+              {cur && row ? (
+                <>
+                  <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                      <span
+                        style={{
+                          width: '56px',
+                          height: '56px',
+                          borderRadius: '50%',
+                          background: row.wash,
+                          display: 'grid',
+                          placeItems: 'center',
+                          flex: 'none',
+                          font: "400 24px/30px 'Coiny', sans-serif",
+                        }}
+                      >
+                        {row.initial}
+                      </span>
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <h2 className="hh">{cur.name || row.name}</h2>
+                        <span className="cap">
+                          {cur.since ? (cur.registered ? 'Có tài khoản từ ' : 'Mua lần đầu ') + formatDate(cur.since) : ''}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                      <div style={{ background: '#f6efe6', borderRadius: '12px', padding: '12px 16px' }}>
+                        <div className="cap">Tổng chi tiêu</div>
+                        <div className="hh">{formatPrice(row.spent)}</div>
+                      </div>
+                      <div style={{ background: '#f6efe6', borderRadius: '12px', padding: '12px 16px' }}>
+                        <div className="cap">Số đơn</div>
+                        <div className="hh">{row.orders}</div>
+                      </div>
+                    </div>
+                    <hr className="hr" />
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span className="cap">Liên hệ</span>
+                      <span className="bsm">{cur.phone || 'Chưa có số điện thoại'}</span>
+                      {cur.email ? <span className="bsm mut">{cur.email}</span> : null}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <span className="cap">{cur.registered ? 'Địa chỉ nhận hàng mặc định' : 'Địa chỉ đơn gần nhất'}</span>
+                      <span className="bsm">{cur.address || 'Chưa có'}</span>
+                    </div>
+                    {cur.phone ? (
+                      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <a href={'https://zalo.me/' + cur.phone.replace(/^\+84/, '0')} target="_blank" rel="noreferrer" className="btn btn-ink">
+                          Chat Zalo
+                        </a>
+                        <a href={'tel:' + cur.phone} className="btn btn-line">
+                          Gọi điện
+                        </a>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <h3 className="hh">Lịch sử mua hàng</h3>
+                    {!vals.history.length ? <p className="bsm mut">Chưa có đơn nào.</p> : null}
+                    {vals.history.map((h) => (
+                      <Link
+                        key={h.id}
+                        to={'/admin/don-hang?ma=' + h.id}
+                        style={{
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          gap: '12px',
+                          alignItems: 'center',
+                          padding: '12px 0',
+                          borderBottom: '1px solid #e3d8ca',
+                        }}
+                      >
+                        <span style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span className="bsm" style={{ fontWeight: '600' }}>
+                            {h.id}
                           </span>
-                          <span style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontWeight: '600' }}>{r.name}</span>
-                            <span className="cap">{r.phone}</span>
+                          <span className="cap">{h.what}</span>
+                        </span>
+                        <span
+                          style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}
+                        >
+                          <span className="bsm" style={{ fontWeight: '500' }}>
+                            {h.total}
                           </span>
-                        </button>
-                      </td>
-                      <td>{r.orders}</td>
-                      <td style={{ fontWeight: '600' }}>{r.spent}</td>
-                      <td>
-                        <span className={r.tagCls}>{r.login}</span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-          <aside
-            ref={detailRef}
-            className="detail-anchor"
-            style={{
-              flex: '1 1 340px',
-              maxWidth: '460px',
-              minWidth: '0',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '24px',
-            }}
-          >
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
-                <span
-                  style={{
-                    width: '56px',
-                    height: '56px',
-                    borderRadius: '50%',
-                    background: vals.cur.wash,
-                    display: 'grid',
-                    placeItems: 'center',
-                    font: "400 24px/30px 'Coiny', sans-serif",
-                  }}
-                >
-                  {vals.cur.initial}
-                </span>
-                <div style={{ display: 'flex', flexDirection: 'column' }}>
-                  <h2 className="hh">{vals.cur.name}</h2>
-                  <span className="cap">Khách từ [tháng đăng ký]</span>
-                </div>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div style={{ background: '#f6efe6', borderRadius: '12px', padding: '12px 16px' }}>
-                  <div className="cap">Tổng chi tiêu</div>
-                  <div className="hh">{vals.cur.spent}</div>
-                </div>
-                <div style={{ background: '#f6efe6', borderRadius: '12px', padding: '12px 16px' }}>
-                  <div className="cap">Số đơn</div>
-                  <div className="hh">{vals.cur.orders}</div>
-                </div>
-              </div>
-              <hr className="hr" />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span className="cap">Liên hệ</span>
-                <span className="bsm">{vals.cur.phone}</span>
-                <span className="bsm mut">[Email nếu có]</span>
-              </div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <span className="cap">Địa chỉ nhận hàng mặc định</span>
-                <span className="bsm">[Địa chỉ mặc định]</span>
-              </div>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <a href="#" className="btn btn-ink">
-                  Chat Zalo
-                </a>
-                <a href="#" className="btn btn-line">
-                  Gọi điện
-                </a>
-              </div>
-            </div>
-            <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <h3 className="hh">Lịch sử mua hàng</h3>
-              {vals.cur.history.map((h, index) => (
-                <Link
-                  key={index}
-                  to="/admin/don-hang"
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    gap: '12px',
-                    alignItems: 'center',
-                    padding: '12px 0',
-                    borderBottom: '1px solid #e3d8ca',
-                  }}
-                >
-                  <span style={{ display: 'flex', flexDirection: 'column' }}>
-                    <span className="bsm" style={{ fontWeight: '600' }}>
-                      {h.id}
-                    </span>
-                    <span className="cap">{h.what}</span>
-                  </span>
-                  <span
-                    style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}
-                  >
-                    <span className="bsm" style={{ fontWeight: '500' }}>
-                      {h.total}
-                    </span>
-                    <span className={h.tagCls}>{h.status}</span>
-                  </span>
-                </Link>
-              ))}
-            </div>
-          </aside>
-        </div>
+                          <span className={h.tagCls}>{h.status}</span>
+                        </span>
+                      </Link>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="bsm mut" role={detail.error ? 'alert' : 'status'}>
+                  {detail.error ? detail.error.message : 'Đang tải hồ sơ...'}
+                </p>
+              )}
+            </aside>
+          </div>
+        ) : null}
       </main>
     </div>
   );

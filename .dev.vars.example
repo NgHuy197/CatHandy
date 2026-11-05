@@ -1,0 +1,17 @@
+# Copy to .dev.vars for local development. In production set each one with `npx wrangler secret put NAME`.
+
+# Comma-separated emails that become admins when they sign in or sign up.
+# Local test admin: sign up at /dang-nhap with admin@cathandy.test and password cathandy-admin-test.
+ADMIN_EMAILS=admin@cathandy.test
+
+# Google One-Tap. Create an OAuth "Web application" client in Google Cloud Console and add
+# http://localhost:5173 and your site URL as authorized JavaScript origins. Leave empty to hide the button.
+GOOGLE_CLIENT_ID=
+
+# Telegram alerts for new orders. Create a bot with @BotFather, send it a message, then read your chat id
+# from https://api.telegram.org/bot<token>/getUpdates. Leave empty to skip alerts.
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_CHAT_ID=
+
+# Public site address used in the "open order" link of Telegram alerts. Defaults to the request's origin.
+SITE_URL=

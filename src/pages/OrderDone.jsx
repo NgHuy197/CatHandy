@@ -70,7 +70,7 @@ export default function OrderDone() {
               <span className="cap">Mã đơn của bạn</span>
               <span className="hlg">{order.code}</span>
             </div>
-            <Link to="/tra-cuu" className="btn btn-line">
+            <Link to={'/tra-cuu?ma=' + order.code} className="btn btn-line">
               Tra cứu tiến độ đơn
             </Link>
           </div>

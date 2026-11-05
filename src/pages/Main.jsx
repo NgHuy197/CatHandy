@@ -1,13 +1,15 @@
 import { useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import SiteHeader from '../components/SiteHeader';
 import Chibi from '../components/Chibi';
 import SiteFooter from '../components/SiteFooter';
 import Icon from '../components/Icon';
 import useMergedState from '../lib/useMergedState';
 import css from '../lib/css';
-import { chibi } from '../lib/chibi';
+import { chibi, formatPrice } from '../lib/chibi';
 import { addReadyItem } from '../lib/cart';
+import { useApi } from '../lib/api';
+import { toCard } from '../lib/products';
 
 const PITCH = 196;
 const HALF = 706;
@@ -30,6 +32,7 @@ function roundedQuadPath(pts, r) {
 }
 
 function CurvedProducts({ products }) {
+  const navigate = useNavigate();
   const boxRef = useRef(null);
   const cardRefs = useRef([]);
   const stRef = useRef(null);
@@ -211,7 +214,7 @@ function CurvedProducts({ products }) {
             style={{ position: 'absolute', left: 0, top: 0, background: p.wash, display: 'none' }}
           >
             <Link
-              to="/san-pham/cap-doi-ao-dai"
+              to={'/san-pham/' + p.slug}
               draggable={false}
               style={{
                 position: 'absolute',
@@ -263,7 +266,9 @@ function CurvedProducts({ products }) {
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    addReadyItem({ ...p, price: Number(p.price.replace(/\D/g, '')) });
+                    // Colours and sizes are picked on the product page.
+                    if (p.hasVariants) return navigate('/san-pham/' + p.slug);
+                    addReadyItem({ slug: p.slug, title: p.title, sub: p.sub, price: p.unitPrice, wash: p.wash, a: p.a, b: p.b });
                   }}
                 >
                   <Icon name="plus" />
@@ -279,6 +284,7 @@ function CurvedProducts({ products }) {
 
 export default function Main() {
   const [state, setState] = useMergedState({ slide: 0 });
+  const { data: catalog } = useApi('/products');
   const pair = (o) => Object.assign({}, o, { hasB: !!o.b });
   const slides = [
     pair({
@@ -389,45 +395,18 @@ export default function Main() {
         face: 'calm',
       }),
     },
-    products: [
-      pair({
-        wash: '#fddede',
-        title: 'Cặp đôi áo dài',
-        sub: 'Hộp gỗ chibi, 2 nhân vật',
-        price: '389.000đ',
-        a: chibi({ hair: 'long', outfitColor: '#c9484f' }),
-        b: chibi({ skin: '#e8b896', outfitColor: '#34405a' }),
-      }),
-      pair({
-        wash: '#d6ebfa',
-        title: 'Chibi vest xanh',
-        sub: 'Hộp mica chibi, 1 nhân vật',
-        price: '289.000đ',
-        a: chibi({ skin: '#e8b896', outfit: 'vest', outfitColor: '#34405a', glasses: true }),
-      }),
-      pair({
-        wash: '#e8e0f8',
-        title: 'Bé hoa tặng mẹ',
-        sub: 'Hộp gỗ chibi, 1 nhân vật',
-        price: '259.000đ',
-        a: chibi({ hair: 'bun', outfit: 'shirt', outfitColor: '#cbbdf0', accessory: 'bouquet' }),
-      }),
-      pair({
-        wash: '#fbeab4',
-        title: 'Bộ cô dâu chú rể mini',
-        sub: 'Quà cưới, 2 nhân vật',
-        price: '549.000đ',
-        a: chibi({ hair: 'long', outfit: 'wedding', outfitColor: '#fffaf0' }),
-        b: chibi({ outfit: 'vest', outfitColor: '#3b2f3e' }),
-      }),
-      pair({
-        wash: '#d3efe9',
-        title: 'Hoa cài tóc chibi',
-        sub: 'Phụ kiện quà tặng',
-        price: '59.000đ',
-        a: chibi({ hair: 'long', hairColor: '#5a3a2a', outfit: 'shirt', accessory: 'flower' }),
-      }),
-    ],
+    // Ready-to-ship products from the catalog, for customers who need a gift quickly.
+    products: (catalog || [])
+      .map(toCard)
+      .filter((p) => p.ready)
+      .slice(0, 8)
+      .map((p) =>
+        pair({
+          ...p,
+          unitPrice: p.price,
+          price: (p.hasVariants ? 'Từ ' : '') + formatPrice(p.fromPrice),
+        }),
+      ),
   };
 
   return (
@@ -1036,7 +1015,7 @@ export default function Main() {
             </Link>
           </div>
         </div>
-        <CurvedProducts products={vals.products} />
+        {vals.products.length ? <CurvedProducts products={vals.products} /> : null}
       </section>
       <section style={{ paddingBottom: 'clamp(64px, 8vw, 96px)' }}>
         <div className="wrap">

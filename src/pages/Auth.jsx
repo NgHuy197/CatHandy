@@ -1,26 +1,60 @@
-import { Link } from 'react-router-dom';
+import { useCallback } from 'react';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import SiteHeader from '../components/SiteHeader';
 import Chibi from '../components/Chibi';
 import SiteFooter from '../components/SiteFooter';
 import Icon from '../components/Icon';
+import GoogleSignIn, { useGoogleClientId } from '../components/GoogleSignIn';
 import useMergedState from '../lib/useMergedState';
+import { login, register, useAuth } from '../lib/auth';
 
 export default function Auth() {
-  const [state, setState] = useMergedState({ tab: 'login' });
+  const [params] = useSearchParams();
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const googleId = useGoogleClientId();
+  const [state, setState] = useMergedState({
+    tab: params.get('tab') === 'dang-ky' ? 'sign' : 'login',
+    name: '',
+    email: '',
+    password: '',
+    password2: '',
+    error: '',
+    busy: false,
+  });
 
-  const l = state.tab === 'login';
+  // Only same-site paths, so a crafted link cannot send people elsewhere after they sign in.
+  const next = (params.get('next') || '').startsWith('/') && !params.get('next').startsWith('//') ? params.get('next') : null;
+  const done = useCallback(
+    (u) => navigate(next || (u.role === 'admin' ? '/admin' : '/tai-khoan'), { replace: true }),
+    [navigate, next],
+  );
+  const googleError = useCallback((err) => setState({ error: err.message }), [setState]);
+
+  const st = state;
+  const l = st.tab === 'login';
   const vals = {
     isLogin: l,
     isSign: !l,
     loginCls: l ? 'chip on' : 'chip',
     signCls: l ? 'chip' : 'chip on',
-    toLogin: () => setState({ tab: 'login' }),
-    toSign: () => setState({ tab: 'sign' }),
-    submitLabel: l ? 'Đăng nhập' : 'Tạo tài khoản',
-    noop: (e) => {
-      if (e && e.preventDefault) e.preventDefault();
+    toLogin: () => setState({ tab: 'login', error: '' }),
+    toSign: () => setState({ tab: 'sign', error: '' }),
+    submitLabel: st.busy ? 'Đang xử lý...' : l ? 'Đăng nhập' : 'Tạo tài khoản',
+    field: (k) => ({ value: st[k], onChange: (e) => setState({ [k]: e.target.value }) }),
+    submit: async (e) => {
+      e.preventDefault();
+      if (!l && st.password !== st.password2) return setState({ error: 'Hai mật khẩu chưa khớp nhau.' });
+      setState({ busy: true, error: '' });
+      try {
+        done(l ? await login(st.email, st.password) : await register(st.name, st.email, st.password));
+      } catch (err) {
+        setState({ busy: false, error: err.message });
+      }
     },
   };
+
+  if (user && !st.busy) return <Navigate to={next || (user.role === 'admin' ? '/admin' : '/tai-khoan')} replace />;
 
   return (
     <div className="cat">
@@ -93,54 +127,63 @@ export default function Auth() {
                 Đăng ký
               </button>
             </div>
-            <div
-              className="glass"
-              style={{
-                borderRadius: '20px',
-                padding: '16px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '12px',
-                flexWrap: 'wrap',
-                boxShadow: '0 1px 2px rgba(42,31,45,0.06), 0 4px 12px rgba(42,31,45,0.05)',
-              }}
-            >
-              <span
-                style={{
-                  width: '40px',
-                  height: '40px',
-                  borderRadius: '50%',
-                  background: '#e8e0f8',
-                  display: 'grid',
-                  placeItems: 'center',
-                  flex: 'none',
-                }}
-              >
-                <Icon name="user" />
-              </span>
-              <div style={{ flex: '1 1 160px', minWidth: '0' }}>
-                <div className="bsm" style={{ fontWeight: '500' }}>
-                  Tiếp tục với Google
+            {googleId ? (
+              <>
+                <div
+                  className="glass"
+                  style={{
+                    borderRadius: '20px',
+                    padding: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '12px',
+                    flexWrap: 'wrap',
+                    boxShadow: '0 1px 2px rgba(42,31,45,0.06), 0 4px 12px rgba(42,31,45,0.05)',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '50%',
+                      background: '#e8e0f8',
+                      display: 'grid',
+                      placeItems: 'center',
+                      flex: 'none',
+                    }}
+                  >
+                    <Icon name="user" />
+                  </span>
+                  <div style={{ flex: '1 1 160px', minWidth: '0' }}>
+                    <div className="bsm" style={{ fontWeight: '500' }}>
+                      Tiếp tục với Google
+                    </div>
+                    <div className="cap" style={{ color: '#6b5f66' }}>
+                      Không cần nhớ thêm mật khẩu
+                    </div>
+                  </div>
+                  <GoogleSignIn clientId={googleId} onSignedIn={done} onError={googleError} />
                 </div>
-                <div className="cap" style={{ color: '#6b5f66' }}>
-                  [tên]@gmail.com
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <hr className="hr" style={{ flex: '1' }} />
+                  <span className="cap">hoặc dùng email</span>
+                  <hr className="hr" style={{ flex: '1' }} />
                 </div>
-              </div>
-              <button type="button" className="btn btn-ink">
-                Tiếp tục
-              </button>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <hr className="hr" style={{ flex: '1' }} />
-              <span className="cap">hoặc dùng email</span>
-              <hr className="hr" style={{ flex: '1' }} />
-            </div>
-            <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={vals.noop}>
+              </>
+            ) : null}
+            <form style={{ display: 'flex', flexDirection: 'column', gap: '16px' }} onSubmit={vals.submit}>
               {vals.isSign ? (
                 <>
                   <div className="field">
                     <label htmlFor="fn">Họ và tên</label>
-                    <input id="fn" className="input" autoComplete="name" placeholder="Nguyễn Văn A" />
+                    <input
+                      id="fn"
+                      className="input"
+                      autoComplete="name"
+                      required
+                      placeholder="Nguyễn Văn A"
+                      {...vals.field('name')}
+                    />
                   </div>
                 </>
               ) : null}
@@ -151,7 +194,9 @@ export default function Auth() {
                   type="email"
                   className="input"
                   autoComplete="email"
+                  required
                   placeholder="ban@email.com"
+                  {...vals.field('email')}
                 />
               </div>
               <div className="field">
@@ -160,8 +205,11 @@ export default function Auth() {
                   id="pw"
                   type="password"
                   className="input"
-                  autoComplete="current-password"
+                  autoComplete={vals.isLogin ? 'current-password' : 'new-password'}
+                  required
+                  minLength={vals.isSign ? 8 : undefined}
                   placeholder="Ít nhất 8 ký tự"
+                  {...vals.field('password')}
                 />
               </div>
               {vals.isSign ? (
@@ -173,25 +221,28 @@ export default function Auth() {
                       type="password"
                       className="input"
                       autoComplete="new-password"
+                      required
                       placeholder="Nhập lại mật khẩu"
+                      {...vals.field('password2')}
                     />
                   </div>
                 </>
               ) : null}
               {vals.isLogin ? (
-                <>
-                  <a
-                    href="#"
-                    className="bsm deep"
-                    style={{ fontWeight: '500', alignSelf: 'flex-start', textDecoration: 'underline' }}
-                  >
-                    Quên mật khẩu?
-                  </a>
-                </>
+                <p className="bsm mut">Quên mật khẩu? Nhắn shop qua Zalo hoặc Messenger để được hỗ trợ.</p>
               ) : null}
-              <Link to="/tai-khoan" className="btn btn-ink btn-lg">
+              {st.error ? (
+                <p
+                  className="bsm"
+                  role="alert"
+                  style={{ background: 'var(--danger-wash)', color: 'var(--danger)', borderRadius: '12px', padding: '12px 16px' }}
+                >
+                  {st.error}
+                </p>
+              ) : null}
+              <button type="submit" className="btn btn-ink btn-lg" disabled={st.busy}>
                 {vals.submitLabel}
-              </Link>
+              </button>
             </form>
             <p className="bsm mut">
               Bạn không cần tài khoản vẫn đặt được quà.{' '}

@@ -13,24 +13,27 @@ Danh sách chức năng đầy đủ của dự án (storefront, admin, tính n�
 - Vite + React 19 + react-router-dom 7, JavaScript (JSX), không dùng TypeScript.
 - Chạy trên Cloudflare Workers: một Worker phục vụ cả bản build React (static assets) lẫn API. Chỉ `/api/*` chạy vào code Worker, các đường dẫn khác trả về `index.html` (`wrangler.jsonc`).
 - API viết bằng Hono, database D1 qua Drizzle ORM. Worker không phải Node đầy đủ: tránh thư viện cần native module (bcrypt, sharp...).
-- `npm install`, `npm run dev` (cổng 5173, chạy cả React, Worker và D1 local trong `.wrangler/`), `npm run build`, `npm run preview`, `npm run deploy`.
-- Lần đầu chạy local: `npm run db:migrate:local` rồi `npm run db:seed:local`.
+- File upload (ảnh sản phẩm, ảnh hoàn thiện đơn, ảnh lớp tùy chọn, ảnh đánh giá) lưu trong R2 (`c.env.MEDIA`), phục vụ qua `/api/media/<key>`.
+- `npm install`, `npm run dev` (cổng 5173, chạy cả React, Worker, D1 và R2 local trong `.wrangler/`), `npm run build`, `npm run preview`, `npm run deploy`.
+- Lần đầu chạy local: `cp .dev.vars.example .dev.vars`, `npm run db:migrate:local`, `npm run db:seed:local`.
 - Đổi schema: sửa `db/schema.js`, chạy `npm run db:generate` rồi `npm run db:migrate:local`. Không sửa tay file trong `migrations/`.
+- Cấu hình (`ADMIN_EMAILS`, `GOOGLE_CLIENT_ID`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `SITE_URL`): `.dev.vars` khi chạy local, `wrangler secret put` khi deploy. Mô tả trong `.dev.vars.example`.
 
 ## Trạng thái hiện tại
 
-Đã có khung backend. Trang đặt hàng gửi đơn lên `POST /api/orders` và lưu vào D1; API còn có danh sách và chi tiết sản phẩm, tra cứu đơn theo mã (bảng route trong `README.md`). Giỏ hàng vẫn nằm trong `localStorage` (`src/lib/cart.js`); catalog, tài khoản, tra cứu đơn và các màn admin chưa gọi API mà vẫn dùng dữ liệu mẫu. Chưa có đăng nhập nên chưa có API admin. `database_id` trong `wrangler.jsonc` còn là placeholder cho tới khi tạo D1 thật trên Cloudflare (các bước trong `README.md`). Các tính năng trong spec như thông báo Telegram, đăng nhập Google vẫn là việc cần làm.
+Đã làm xong backend cho mục 1 đến 3 của spec và các trang đều gọi API, không còn dữ liệu mẫu (trừ nội dung giới thiệu tĩnh ở trang chủ). Đăng nhập bằng email/mật khẩu hoặc Google One-Tap (cần `GOOGLE_CLIENT_ID`); admin là tài khoản có email nằm trong `ADMIN_EMAILS`. Giỏ hàng vẫn nằm trong `localStorage` (`src/lib/cart.js`). Chưa có: quên mật khẩu (cần dịch vụ gửi email), link Zalo/Messenger thật của shop, giới hạn số lần đăng nhập sai. `database_id` trong `wrangler.jsonc` còn là placeholder cho tới khi tạo D1 thật (các bước trong `README.md`).
 
 ## Cấu trúc
 
 - `src/App.jsx`: khai báo toàn bộ route.
 - `src/pages/`: mỗi route một file; trang admin có tiền tố `Admin`.
-- `src/components/`: thành phần dùng chung (`Chibi.jsx` và `MiniChibi.jsx` vẽ nhân vật, `SiteHeader`, `SiteFooter`, `AdminSidebar`).
-- `src/lib/`: logic dùng chung (`cart.js`, `chibi.js`).
+- `src/components/`: thành phần dùng chung (`Chibi.jsx` và `MiniChibi.jsx` vẽ nhân vật, chồng thêm ảnh lớp qua prop `layers`; `SiteHeader`, `SiteFooter`, `AdminSidebar`, `RequireAdmin`, `GoogleSignIn`).
+- `src/lib/`: logic dùng chung phía trình duyệt. `api.js` (gọi API, hook `useApi`), `auth.js` (người đang đăng nhập), `cart.js`, `wishlist.js`, `adminAlerts.js` (đếm đơn chưa xem), `products.js`, `preview.js` (xuất ảnh xem trước PNG).
 - `src/styles/cat.css`: toàn bộ CSS.
-- `worker/index.js`: API Hono, toàn bộ route nằm dưới `/api`.
-- `db/schema.js`: schema Drizzle (`products`, `orders`, `order_items`). `migrations/` là SQL do drizzle-kit sinh, `db/seed.sql` là catalog mẫu.
-- `wrangler.jsonc`: cấu hình Worker, static assets và binding D1 (`c.env.DB` trong Hono).
+- `shared/`: code dùng chung cho cả trình duyệt và Worker. `customizer.js` (tính giá, mô tả nhân vật, ảnh lớp), `orders.js` (danh sách trạng thái đơn), `format.js`.
+- `worker/index.js`: gắn các route trong `worker/routes/` (`auth`, `account`, `catalog`, `orders`, `admin`) dưới `/api`. `worker/lib/`: đăng nhập và session, upload R2, Telegram, đọc cấu hình customizer.
+- `db/schema.js`: schema Drizzle. `migrations/` là SQL do drizzle-kit sinh, `db/seed.sql` là dữ liệu khởi đầu (sản phẩm, tùy chọn custom, giá, mẫu gợi ý).
+- `wrangler.jsonc`: cấu hình Worker, static assets, binding D1 (`c.env.DB`) và R2 (`c.env.MEDIA`).
 
 ## Route và mục trong spec
 
@@ -51,7 +54,9 @@ Danh sách chức năng đầy đủ của dự án (storefront, admin, tính n�
 ## Quy ước
 
 - Không tích hợp cổng thanh toán: shop liên hệ khách qua Zalo hoặc điện thoại để chốt đơn và hướng dẫn thanh toán.
-- Giá trong trình thiết kế là giá nền theo loại hộp cộng phụ phí từng tùy chọn, và theo spec do admin cấu hình. Hiện các hằng số giá (`BOX`, `SECOND`, `OUT`, `ACC`, `GL`, `BE`) còn hard-code trong `src/pages/Customizer.jsx` làm dữ liệu mẫu; khi có backend thì chuyển sang đọc từ cấu hình admin (`/admin/tuy-chon`), đừng thêm hằng số giá mới rải rác ở nơi khác.
-- Server không tin giá client gửi lên: món có sẵn lấy giá từ bảng `products`. Giá chibi tự thiết kế hiện vẫn do trình duyệt tính; khi chuyển giá sang cấu hình admin thì tính lại ở server.
+- Giá trong trình thiết kế là giá nền theo loại hộp cộng phụ phí từng tùy chọn, lấy từ bảng `options` và `settings` do admin sửa ở `/admin/tuy-chon`. Mọi phép tính giá custom đi qua `quoteDesign` trong `shared/customizer.js`; đừng thêm hằng số giá ở nơi khác.
+- Server không tin giá client gửi lên: món có sẵn lấy giá từ bảng `products` (theo cỡ nếu có), chibi tự thiết kế được tính lại bằng `quoteDesign` với cấu hình hiện tại.
 - Mã đơn là chuỗi ngẫu nhiên (`CH-XXXXXX`), không tăng dần, và API tra cứu công khai không trả về tên, số điện thoại hay địa chỉ của khách.
+- Mỗi route admin trong Worker đều qua `requireAdmin`; `RequireAdmin` phía React chỉ để điều hướng, không thay cho kiểm tra ở server.
+- Đơn do tài khoản admin đặt được lưu như đơn mua nhanh theo SĐT, vì thường là admin nhập hộ đơn cho khách.
 - Mục 4 của spec ("Tính năng mở rộng") là giai đoạn sau, không làm trừ khi được yêu cầu.
