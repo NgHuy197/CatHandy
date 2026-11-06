@@ -16,6 +16,10 @@ const PITCH = 196;
 const HALF = 706;
 const FRAME = 1440;
 
+// Real photos of gifts customers received, as { src, alt }. The "Hình thật" section stays hidden until this has some.
+const CUSTOMER_PHOTOS = [];
+const PHOTO_HEIGHTS = [220, 300, 250, 190];
+
 function roundedQuadPath(pts, r) {
   let d = '';
   const n = pts.length;
@@ -1115,21 +1119,6 @@ export default function Main() {
                   borderBottom: '1px solid #e3d8ca',
                 }}
               >
-                <Icon name="clock" className="ic ic-24" />
-                <span className="hlg" style={{ minWidth: '130px' }}>
-                  [X] năm
-                </span>
-                <span className="bsm mut">Shop làm quà handmade</span>
-              </div>
-              <div
-                style={{
-                  display: 'flex',
-                  gap: '16px',
-                  alignItems: 'center',
-                  paddingBlock: '20px',
-                  borderBottom: '1px solid #e3d8ca',
-                }}
-              >
                 <Icon name="truck" className="ic ic-24" />
                 <span className="hlg" style={{ minWidth: '130px' }}>
                   2-4 ngày
@@ -1145,67 +1134,27 @@ export default function Main() {
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h2 className="hh">Hình thật từ những người đã nhận quà</h2>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-end' }}>
-              <div
-                className="ph"
-                style={{
-                  flex: '1 1 180px',
-                  height: '220px',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  textAlign: 'center',
-                  padding: '16px',
-                }}
-              >
-                <Icon name="image" className="ic ic-24" />
-                <span className="bsm">[Ảnh khách nhận hàng 1]</span>
-              </div>
-              <div
-                className="ph"
-                style={{
-                  flex: '1.2 1 200px',
-                  height: '300px',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  textAlign: 'center',
-                  padding: '16px',
-                }}
-              >
-                <Icon name="image" className="ic ic-24" />
-                <span className="bsm">[Ảnh khách nhận hàng 2]</span>
-              </div>
-              <div
-                className="ph"
-                style={{
-                  flex: '1 1 180px',
-                  height: '250px',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  textAlign: 'center',
-                  padding: '16px',
-                }}
-              >
-                <Icon name="image" className="ic ic-24" />
-                <span className="bsm">[Ảnh khách nhận hàng 3]</span>
-              </div>
-              <div
-                className="ph"
-                style={{
-                  flex: '1.4 1 220px',
-                  height: '190px',
-                  flexDirection: 'column',
-                  gap: '8px',
-                  textAlign: 'center',
-                  padding: '16px',
-                }}
-              >
-                <Icon name="image" className="ic ic-24" />
-                <span className="bsm">[Ảnh khách nhận hàng 4]</span>
+          {CUSTOMER_PHOTOS.length ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h2 className="hh">Hình thật từ những người đã nhận quà</h2>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '16px', alignItems: 'flex-end' }}>
+                {CUSTOMER_PHOTOS.map((ph, i) => (
+                  <img
+                    key={ph.src}
+                    src={ph.src}
+                    alt={ph.alt}
+                    loading="lazy"
+                    style={{
+                      flex: '1 1 200px',
+                      height: PHOTO_HEIGHTS[i % PHOTO_HEIGHTS.length] + 'px',
+                      objectFit: 'cover',
+                      borderRadius: 'var(--radius-image)',
+                    }}
+                  />
+                ))}
               </div>
             </div>
-          </div>
+          ) : null}
         </div>
       </section>
       <SiteFooter />

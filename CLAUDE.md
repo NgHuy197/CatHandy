@@ -21,7 +21,7 @@ Danh sách chức năng đầy đủ của dự án (storefront, admin, tính n�
 
 ## Trạng thái hiện tại
 
-Đã làm xong backend cho mục 1 đến 3 của spec và các trang đều gọi API, không còn dữ liệu mẫu (trừ nội dung giới thiệu tĩnh ở trang chủ). Giỏ hàng nằm trong `localStorage` (`src/lib/cart.js`) và bắt đầu rỗng. Đăng nhập bằng email/mật khẩu hoặc Google One-Tap (cần `GOOGLE_CLIENT_ID`). Thông tin liên hệ của shop do admin nhập ở `/admin/cai-dat`; mục nào để trống thì site ẩn đi. Chưa có: quên mật khẩu (cần dịch vụ gửi email). `database_id` trong `wrangler.jsonc` còn là placeholder cho tới khi tạo D1 thật (các bước trong `README.md`).
+Đã làm xong backend cho mục 1 đến 3 của spec và các trang đều gọi API, không còn dữ liệu mẫu (trừ nội dung giới thiệu tĩnh ở trang chủ). Giỏ hàng nằm trong `localStorage` (`src/lib/cart.js`) và bắt đầu rỗng. Đăng nhập bằng email/mật khẩu hoặc Google One-Tap (cần `GOOGLE_CLIENT_ID`). Thông tin liên hệ của shop do admin nhập ở `/admin/cai-dat`; mục nào để trống thì site ẩn đi. Mục "Hình thật từ những người đã nhận quà" ở trang chủ ẩn cho tới khi `CUSTOMER_PHOTOS` trong `Main.jsx` có ảnh thật; số năm hoạt động của shop chưa hiển thị vì chưa có số liệu. Chưa có: quên mật khẩu (cần dịch vụ gửi email). `database_id` trong `wrangler.jsonc` còn là placeholder cho tới khi tạo D1 thật (các bước trong `README.md`).
 
 ## Cấu trúc
 
