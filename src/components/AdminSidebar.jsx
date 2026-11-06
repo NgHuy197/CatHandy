@@ -19,6 +19,7 @@ export default function AdminSidebar(props) {
     sCust: st('cust'),
     sOpt: st('opt'),
     sProd: st('prod'),
+    sSettings: st('settings'),
   };
 
   // In the top-bar layout the nav scrolls sideways; keep the current page in view.
@@ -81,6 +82,10 @@ export default function AdminSidebar(props) {
         <Link to="/admin/san-pham" style={css(vals.sProd)} aria-current={cur('prod')}>
           <Icon name="gift" />
           Sản phẩm có sẵn
+        </Link>
+        <Link to="/admin/cai-dat" style={css(vals.sSettings)} aria-current={cur('settings')}>
+          <Icon name="info" />
+          Cài đặt shop
         </Link>
       </nav>
       <hr className="hr admin-hr" />

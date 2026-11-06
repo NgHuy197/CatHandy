@@ -229,7 +229,7 @@ export default function Auth() {
                 </>
               ) : null}
               {vals.isLogin ? (
-                <p className="bsm mut">Quên mật khẩu? Nhắn shop qua Zalo hoặc Messenger để được hỗ trợ.</p>
+                <p className="bsm mut">Quên mật khẩu? Liên hệ shop theo thông tin ở cuối trang để được hỗ trợ.</p>
               ) : null}
               {st.error ? (
                 <p

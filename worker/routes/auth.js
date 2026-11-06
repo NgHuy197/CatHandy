@@ -10,15 +10,19 @@ import {
   startSession,
   verifyPassword,
 } from '../lib/auth';
+import { limitAuth } from '../lib/limits';
 import { fail, getDb, readJson, str } from '../lib/util';
 
 const auth = new Hono();
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+// A well-formed hash no password matches, checked when the account does not exist.
+const DUMMY_HASH = 'pbkdf2$100000$AAAAAAAAAAAAAAAAAAAAAA==$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=';
 
-// Promotes the user if their email is in ADMIN_EMAILS, then signs them in.
-async function signIn(c, user) {
-  if (user.role !== 'admin' && isAdminEmail(c.env, user.email)) {
+// Signs the user in. ADMIN_EMAILS promotes only when the email is proven (Google says email_verified):
+// password sign-ups never confirm the address, so whoever registered an admin's email first would get in.
+async function signIn(c, user, { emailVerified = false } = {}) {
+  if (emailVerified && user.role !== 'admin' && isAdminEmail(c.env, user.email)) {
     await getDb(c).update(users).set({ role: 'admin' }).where(eq(users.id, user.id));
     user = { ...user, role: 'admin' };
   }
@@ -27,6 +31,10 @@ async function signIn(c, user) {
 }
 
 auth.get('/me', async (c) => c.json({ user: publicUser(await currentUser(c)) }));
+
+auth.use('/register', limitAuth);
+auth.use('/login', limitAuth);
+auth.use('/google', limitAuth);
 
 auth.post('/register', async (c) => {
   const body = await readJson(c);
@@ -52,8 +60,10 @@ auth.post('/login', async (c) => {
   const email = str(body.email, 200).toLowerCase();
   const password = typeof body.password === 'string' ? body.password : '';
   const [user] = await getDb(c).select().from(users).where(eq(users.email, email));
-  // Same message whether the email or the password is wrong, so the form does not reveal who has an account.
-  if (!user || !(await verifyPassword(password, user.passwordHash))) fail(401, 'Email hoặc mật khẩu chưa đúng.');
+  // Same message and the same hashing work whether the email or the password is wrong, so neither the reply nor
+  // its timing reveals who has an account. Google-only accounts have no hash and check against the dummy too.
+  const ok = await verifyPassword(password, user?.passwordHash || DUMMY_HASH);
+  if (!user || !ok) fail(401, 'Email hoặc mật khẩu chưa đúng.');
   return signIn(c, user);
 });
 
@@ -84,7 +94,7 @@ auth.post('/google', async (c) => {
         .returning();
     }
   }
-  return signIn(c, user);
+  return signIn(c, user, { emailVerified: true });
 });
 
 auth.post('/logout', async (c) => {

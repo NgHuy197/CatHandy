@@ -1,57 +1,20 @@
 import { useSyncExternalStore } from 'react';
 import { api } from './api';
-import { chibi } from './chibi';
 
 const KEY = 'cat-handy-cart';
 
-// Sample items from the design, shown until the visitor changes the cart.
-const SAMPLE_CHARS = [
-  { hair: 'long', outfit: 'aodai', outfitColor: '#c9484f', accessory: 'bouquet' },
-  { skin: '#e8b896', hair: 'short', outfit: 'vest', outfitColor: '#34405a', face: 'wink' },
-];
-const SAMPLE = {
-  items: [
-    {
-      id: 'sample-custom',
-      isCustom: true,
-      title: 'Hộp gỗ chibi',
-      sub: '2 nhân vật',
-      price: 474000,
-      qty: 1,
-      wash: '#fbeab4',
-      a: chibi(SAMPLE_CHARS[0]),
-      b: chibi(SAMPLE_CHARS[1]),
-      lines: [
-        'Nhân vật 1: Tóc dài đen, da be, cười nhẹ, áo dài đỏ, bó hoa',
-        'Nhân vật 2: Tóc ngắn đen, da nâu sáng, nháy mắt, vest xanh navy',
-      ],
-      note: '',
-      design: { box: 'wood', count: 2, chars: SAMPLE_CHARS.map(chibi), note: '' },
-    },
-    {
-      id: 'chibi-vest-xanh',
-      isCustom: false,
-      slug: 'chibi-vest-xanh',
-      title: 'Chibi vest xanh',
-      sub: 'Hộp mica chibi, 1 nhân vật',
-      price: 289000,
-      qty: 1,
-      wash: '#d6ebfa',
-      a: chibi({ skin: '#e8b896', outfit: 'vest', outfitColor: '#34405a', glasses: true }),
-    },
-  ],
-  lastOrder: null,
-};
+const EMPTY = { items: [], lastOrder: null };
 
-// Items saved by an older version of the site lack what the order API needs; they are dropped.
-const orderable = (it) => (it.isCustom ? !!it.design : !!it.slug);
+// Dropped when a saved cart loads: items from older versions of the site that lack what the order API needs,
+// and the design-sample item an earlier build pre-filled every new cart with.
+const keep = (it) => it.id !== 'sample-custom' && (it.isCustom ? !!it.design : !!it.slug);
 
 function load() {
   try {
     const saved = JSON.parse(localStorage.getItem(KEY));
-    return saved ? { ...saved, items: saved.items.filter(orderable) } : SAMPLE;
+    return saved ? { ...saved, items: (saved.items || []).filter(keep) } : EMPTY;
   } catch {
-    return SAMPLE;
+    return EMPTY;
   }
 }
 

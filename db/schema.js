@@ -71,7 +71,8 @@ export const reviews = sqliteTable(
     photos: text('photos', { mode: 'json' }).notNull().default([]),
     createdAt: createdAt(),
   },
-  (t) => [index('reviews_product_id_idx').on(t.productId)],
+  // One review per customer per product; writing again replaces it.
+  (t) => [index('reviews_product_id_idx').on(t.productId), uniqueIndex('reviews_user_product_unique').on(t.userId, t.productId)],
 );
 
 export const wishlist = sqliteTable(

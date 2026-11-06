@@ -1,8 +1,10 @@
 # Copy to .dev.vars for local development. In production set each one with `npx wrangler secret put NAME`.
 
-# Comma-separated emails that become admins when they sign in or sign up.
-# Local test admin: sign up at /dang-nhap with admin@cathandy.test and password cathandy-admin-test.
-ADMIN_EMAILS=admin@cathandy.test
+# Comma-separated emails that become admins the first time they sign in with Google (Google has verified them).
+# Signing up with a password never grants admin. To make a password account an admin, run once:
+#   npx wrangler d1 execute cat-handy --local --command "UPDATE users SET role = 'admin' WHERE email = 'you@example.com'"
+# (use --remote instead of --local for the deployed database).
+ADMIN_EMAILS=
 
 # Google One-Tap. Create an OAuth "Web application" client in Google Cloud Console and add
 # http://localhost:5173 and your site URL as authorized JavaScript origins. Leave empty to hide the button.

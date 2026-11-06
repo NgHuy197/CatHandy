@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react';
-import { api } from '../lib/api';
+import { useEffect, useRef } from 'react';
 import { loginWithGoogle } from '../lib/auth';
+import { useConfig } from '../lib/config';
 
 let gsiScript;
 const loadGsi = () =>
@@ -17,13 +17,7 @@ const loadGsi = () =>
   }));
 
 // GOOGLE_CLIENT_ID from the Worker, or null while loading or when Google sign-in is not set up.
-export function useGoogleClientId() {
-  const [clientId, setClientId] = useState(null);
-  useEffect(() => {
-    api('/config').then((c) => setClientId(c.googleClientId), () => {});
-  }, []);
-  return clientId;
-}
+export const useGoogleClientId = () => useConfig().googleClientId;
 
 // Google's button plus the One-Tap prompt.
 export default function GoogleSignIn({ clientId, onSignedIn, onError }) {

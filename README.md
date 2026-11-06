@@ -20,7 +20,15 @@ npm run dev
 
 `npm run dev` runs the React app and the Worker together on http://localhost:5173, with local D1 and R2 stored in `.wrangler/`.
 
-To get an admin account, put your email in `ADMIN_EMAILS` in `.dev.vars` and sign up at `/dang-nhap?tab=dang-ky` with it. `.dev.vars.example` lists a ready-made local test admin.
+### Admin accounts
+
+`ADMIN_EMAILS` only promotes an email the first time it signs in with Google, because Google has verified it. Signing up with a password never grants admin: nobody checks that the address belongs to the person typing it. To make a password account an admin, sign up, then run (use `--remote` for the deployed database):
+
+```bash
+npx wrangler d1 execute cat-handy --local --command "UPDATE users SET role = 'admin' WHERE email = 'you@example.com'"
+```
+
+After signing in, fill in the shop's phone, email, Zalo, Messenger, Shopee and Fanpage at `/admin/cai-dat`. Until then the footer, chat buttons and tracking page leave those out.
 
 ## What the API covers
 
@@ -28,9 +36,12 @@ To get an admin account, put your email in `ADMIN_EMAILS` in `.dev.vars` and sig
 |---|---|
 | Accounts | `POST /api/auth/register`, `/login`, `/google`, `/logout`, `GET /api/auth/me`, `PATCH /api/account`, `GET /api/account/orders`, wishlist under `/api/account/wishlist` |
 | Catalog | `GET /api/products`, `GET /api/products/:slug` (with reviews), `POST /api/products/:slug/reviews` (buyers only), `GET /api/customizer` |
-| Orders | `POST /api/orders`, `GET /api/orders/track?q=` (code or phone), `POST /api/orders/:code/approve`, `POST /api/orders/:code/revision` |
-| Admin | `/api/admin/orders` (status, notes, finished photos), `/api/admin/customers`, `/api/admin/options`, `/api/admin/settings`, `/api/admin/presets`, `/api/admin/products`, `/api/admin/reports`, `/api/admin/uploads` |
-| Files | `POST /api/uploads` (review photos), `GET /api/media/<key>` (anything stored in R2) |
+| Orders | `POST /api/orders`, `GET /api/orders/track?q=` (code or phone; a phone lookup masks the codes), `POST /api/orders/:code/approve` and `/revision` (body carries the order's phone) |
+| Admin | `/api/admin/orders` (status, notes, finished photos), `/api/admin/customers`, `/api/admin/options`, `/api/admin/settings`, `/api/admin/presets`, `/api/admin/products`, `/api/admin/reports`, `/api/admin/uploads`, `/api/admin/shop` |
+| Files | `POST /api/uploads` (review photos), `GET /api/media/<key>` (anything stored in R2, with Range support for video) |
+| Settings | `GET /api/config` (Google client id and the shop's contact details) |
+
+Placing orders, signing in, tracking and uploading are rate limited per visitor (the `ratelimits` bindings in `wrangler.jsonc`, used from `worker/lib/limits.js`).
 
 The server re-prices every order: ready-made items from the catalog, custom chibi from the admin's customizer options through `shared/customizer.js`, the same code the customizer uses for its live price. The cart itself stays in `localStorage`.
 
@@ -55,10 +66,10 @@ npx wrangler d1 create cat-handy
 npx wrangler r2 bucket create cat-handy-media
 ```
 
-Paste the printed `database_id` into `wrangler.jsonc`. Set the settings from `.dev.vars.example` as secrets (only `ADMIN_EMAILS` is required):
+Paste the printed `database_id` into `wrangler.jsonc`. Set the settings from `.dev.vars.example` as secrets, for example:
 
 ```bash
-npx wrangler secret put ADMIN_EMAILS
+npx wrangler secret put GOOGLE_CLIENT_ID
 ```
 
 Then:
@@ -68,3 +79,5 @@ npm run db:migrate:remote
 npm run db:seed:remote
 npm run deploy
 ```
+
+Then make your account an admin (see Admin accounts above) and fill in `/admin/cai-dat`.

@@ -7,6 +7,8 @@ import Icon from '../components/Icon';
 import useMergedState from '../lib/useMergedState';
 import css from '../lib/css';
 import { api } from '../lib/api';
+import { useAuth } from '../lib/auth';
+import { useShop } from '../lib/config';
 import { formatPrice } from '../lib/chibi';
 import { formatDate } from '../../shared/format';
 import { TRACK_STEPS, trackStep } from '../../shared/orders';
@@ -25,12 +27,18 @@ const CUSTOMER_STATUS = {
 
 export default function Track() {
   const [params, setParams] = useSearchParams();
+  const { user } = useAuth();
+  const shop = useShop();
   const [state, setState] = useMergedState({
     q: params.get('ma') || '',
     orders: null,
+    by: 'code',
+    lookupPhone: '',
     sel: 0,
     editing: false,
     editText: '',
+    // The half of the proof the lookup did not give: the phone after a code lookup, the code after a phone lookup.
+    proof: '',
     busy: false,
     error: '',
   });
@@ -39,8 +47,16 @@ export default function Track() {
   const search = async (q) => {
     setState({ busy: true, error: '', editing: false });
     try {
-      const { orders } = await api('/orders/track?q=' + encodeURIComponent(q.trim()));
-      setState({ busy: false, orders, sel: 0, error: orders.length ? '' : 'Không tìm thấy đơn nào với thông tin này.' });
+      const { orders, by } = await api('/orders/track?q=' + encodeURIComponent(q.trim()));
+      setState({
+        busy: false,
+        orders,
+        by,
+        lookupPhone: by === 'phone' ? q.trim() : '',
+        proof: by === 'code' ? user?.phone || '' : '',
+        sel: 0,
+        error: orders.length ? '' : 'Không tìm thấy đơn nào với thông tin này.',
+      });
     } catch (err) {
       setState({ busy: false, orders: null, error: err.message });
     }
@@ -51,14 +67,23 @@ export default function Track() {
     if (params.get('ma')) search(params.get('ma'));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+  // The account can finish loading after that search; its phone fills the proof field.
+  useEffect(() => {
+    if (user?.phone && st.by === 'code' && !st.proof) setState({ proof: user.phone });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user]);
 
   const order = st.orders?.[st.sel];
   const setStatus = (status) =>
     setState({ orders: st.orders.map((o, i) => (i === st.sel ? { ...o, status } : o)), editing: false, busy: false });
   const act = async (path, body, status) => {
+    const byPhone = st.by === 'phone';
+    const code = byPhone ? st.proof.trim().toUpperCase() : order.code;
+    const phone = byPhone ? st.lookupPhone : st.proof;
+    if (!code) return setState({ error: 'Bạn nhập mã đơn (trong tin nhắn xác nhận hoặc Zalo của shop) nhé.' });
     setState({ busy: true, error: '' });
     try {
-      await api('/orders/' + order.code + path, { method: 'POST', body });
+      await api('/orders/' + encodeURIComponent(code) + path, { method: 'POST', body: { ...body, phone } });
       setStatus(status);
     } catch (err) {
       setState({ busy: false, error: err.message });
@@ -97,7 +122,15 @@ export default function Track() {
     isEditing: status === 'awaiting' && st.editing,
     isApproved: status === 'approved',
     isSent: status === 'revision',
-    approve: () => act('/approve', undefined, 'approved'),
+    approve: () => act('/approve', {}, 'approved'),
+    proofLabel: st.by === 'phone' ? 'Mã đơn để xác nhận' : 'Số điện thoại đặt hàng',
+    proofHint:
+      st.by === 'phone'
+        ? 'Mã đơn có trên màn hình đặt hàng thành công và trong tin nhắn shop gửi.'
+        : 'Shop đối chiếu số này với đơn để chắc chắn đúng là bạn.',
+    proof: st.proof,
+    onProof: (e) => setState({ proof: e.target.value }),
+    codeText: order ? order.code || order.maskedCode : '',
     askEdit: () => setState({ editing: true }),
     cancelEdit: () => setState({ editing: false }),
     sendEdit: () => act('/revision', { body: st.editText }, 'revision'),
@@ -114,7 +147,7 @@ export default function Track() {
     picks:
       st.orders && st.orders.length > 1
         ? st.orders.map((o, i) => ({
-            label: o.code,
+            label: o.code || o.maskedCode + ', ' + formatDate(o.createdAt),
             cls: i === st.sel ? 'chip on' : 'chip',
             on: i === st.sel,
             pick: () => setState({ sel: i, editing: false, error: '' }),
@@ -196,7 +229,7 @@ export default function Track() {
                 >
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
                     <span className="cap">Mã đơn</span>
-                    <span className="hlg">{order.code}</span>
+                    <span className="hlg">{vals.codeText}</span>
                   </div>
                   <span className={vals.statusCls}>{vals.statusText}</span>
                 </div>
@@ -267,7 +300,7 @@ export default function Track() {
                       <a key={ph.id} href={ph.url} target="_blank" rel="noreferrer">
                         <img
                           src={ph.url}
-                          alt={'Ảnh sản phẩm đơn ' + order.code}
+                          alt={'Ảnh sản phẩm đơn ' + vals.codeText}
                           style={{ width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', borderRadius: '16px', display: 'block' }}
                         />
                       </a>
@@ -282,6 +315,20 @@ export default function Track() {
                     <span className="bsm">Shop sẽ gửi ảnh ở đây khi sản phẩm hoàn thiện.</span>
                   </div>
                 )}
+                {status === 'awaiting' ? (
+                  <div className="field" style={{ maxWidth: '360px' }}>
+                    <label htmlFor="proof">{vals.proofLabel}</label>
+                    <input
+                      id="proof"
+                      className="input"
+                      value={vals.proof}
+                      onChange={vals.onProof}
+                      autoComplete={st.by === 'phone' ? 'off' : 'tel'}
+                      placeholder={st.by === 'phone' ? 'CH-XXXXXX' : '09xx xxx xxx'}
+                    />
+                    <span className="cap">{vals.proofHint}</span>
+                  </div>
+                ) : null}
                 {vals.isPending ? (
                   <>
                     <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
@@ -293,10 +340,7 @@ export default function Track() {
                         Yêu cầu chỉnh sửa
                       </button>
                     </div>
-                    <p className="cap">
-                      Chỉ khi bạn xác nhận, shop mới giao cho đơn vị vận chuyển. Bạn cũng có thể nhắn qua Zalo
-                      hoặc Messenger.
-                    </p>
+                    <p className="cap">Chỉ khi bạn xác nhận, shop mới giao cho đơn vị vận chuyển.</p>
                   </>
                 ) : null}
                 {vals.isEditing ? (
@@ -443,14 +487,27 @@ export default function Track() {
                 }}
               >
                 <span className="hh">Cần trao đổi thêm?</span>
-                <span className="bsm">Chat với shop để chỉnh sửa hoặc hỏi thêm về đơn.</span>
+                <span className="bsm">
+                  {shop.zaloUrl || shop.messengerUrl || shop.phone
+                    ? 'Chat với shop để chỉnh sửa hoặc hỏi thêm về đơn.'
+                    : 'Shop sẽ liên hệ bạn qua số điện thoại đã đặt hàng.'}
+                </span>
                 <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  <a href="#" className="btn btn-ink">
-                    Chat Zalo
-                  </a>
-                  <a href="#" className="btn btn-line">
-                    Messenger
-                  </a>
+                  {shop.zaloUrl ? (
+                    <a href={shop.zaloUrl} target="_blank" rel="noreferrer" className="btn btn-ink">
+                      Chat Zalo
+                    </a>
+                  ) : null}
+                  {shop.messengerUrl ? (
+                    <a href={shop.messengerUrl} target="_blank" rel="noreferrer" className="btn btn-line">
+                      Messenger
+                    </a>
+                  ) : null}
+                  {shop.phone ? (
+                    <a href={'tel:' + shop.phone} className="btn btn-line">
+                      Gọi {shop.phone}
+                    </a>
+                  ) : null}
                 </div>
               </div>
             </aside>

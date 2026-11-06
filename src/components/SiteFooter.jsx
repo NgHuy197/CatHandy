@@ -1,7 +1,13 @@
 import { Link } from 'react-router-dom';
 import Icon from './Icon';
+import { useShop } from '../lib/config';
+
+const ext = { target: '_blank', rel: 'noreferrer' };
 
 export default function SiteFooter() {
+  // Contact details the admin entered in /admin/cai-dat; anything not filled in is left out.
+  const shop = useShop();
+  const hasChat = !!(shop.zaloUrl || shop.messengerUrl);
   return (
     <footer className="cat site-footer" style={{ background: '#f6efe6' }}>
       <div
@@ -60,14 +66,31 @@ export default function SiteFooter() {
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <span className="lbl">Liên hệ</span>
-          <span className="bsm">Zalo / Điện thoại: [SĐT của shop]</span>
-          <span className="bsm">Email: [Email của shop]</span>
-          <a href="#" className="bsm deep" style={{ fontWeight: '500' }}>
-            Gian hàng Shopee
-          </a>
-          <a href="#" className="bsm deep" style={{ fontWeight: '500' }}>
-            Fanpage Facebook
-          </a>
+          {shop.phone ? (
+            <a href={'tel:' + shop.phone} className="bsm">
+              Zalo / Điện thoại: {shop.phone}
+            </a>
+          ) : null}
+          {shop.email ? (
+            <a href={'mailto:' + shop.email} className="bsm">
+              Email: {shop.email}
+            </a>
+          ) : null}
+          {shop.shopeeUrl ? (
+            <a href={shop.shopeeUrl} {...ext} className="bsm deep" style={{ fontWeight: '500' }}>
+              Gian hàng Shopee
+            </a>
+          ) : null}
+          {shop.facebookUrl ? (
+            <a href={shop.facebookUrl} {...ext} className="bsm deep" style={{ fontWeight: '500' }}>
+              Fanpage Facebook
+            </a>
+          ) : null}
+          {!shop.phone && !shop.email && !shop.shopeeUrl && !shop.facebookUrl ? (
+            <Link to="/tra-cuu" className="bsm">
+              Tra cứu đơn hàng
+            </Link>
+          ) : null}
         </div>
       </div>
       <div className="wrap" style={{ marginTop: '48px' }}>
@@ -76,19 +99,25 @@ export default function SiteFooter() {
           © 2026 Cat Handy. Quà handmade, làm bằng tay và bằng cả tấm lòng.
         </p>
       </div>
-      <div
-        className="glass-see fab"
-        style={{ boxShadow: '0 12px 32px rgba(42,31,45,0.12)' }}
-      >
-        <a href="#" className="btn btn-ink" aria-label="Chat Zalo">
-          <Icon name="message" />
-          <span>Chat Zalo</span>
-        </a>
-        <a href="#" className="btn btn-line" aria-label="Messenger">
-          <Icon name="message" />
-          <span>Messenger</span>
-        </a>
-      </div>
+      {hasChat ? (
+        <div
+          className="glass-see fab"
+          style={{ boxShadow: '0 12px 32px rgba(42,31,45,0.12)' }}
+        >
+          {shop.zaloUrl ? (
+            <a href={shop.zaloUrl} {...ext} className="btn btn-ink" aria-label="Chat Zalo">
+              <Icon name="message" />
+              <span>Chat Zalo</span>
+            </a>
+          ) : null}
+          {shop.messengerUrl ? (
+            <a href={shop.messengerUrl} {...ext} className="btn btn-line" aria-label="Messenger">
+              <Icon name="message" />
+              <span>Messenger</span>
+            </a>
+          ) : null}
+        </div>
+      ) : null}
     </footer>
   );
 }

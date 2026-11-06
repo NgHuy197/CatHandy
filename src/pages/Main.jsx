@@ -10,6 +10,7 @@ import { chibi, formatPrice } from '../lib/chibi';
 import { addReadyItem } from '../lib/cart';
 import { useApi } from '../lib/api';
 import { toCard } from '../lib/products';
+import { useShop } from '../lib/config';
 
 const PITCH = 196;
 const HALF = 706;
@@ -285,6 +286,7 @@ function CurvedProducts({ products }) {
 export default function Main() {
   const [state, setState] = useMergedState({ slide: 0 });
   const { data: catalog } = useApi('/products');
+  const shop = useShop();
   const pair = (o) => Object.assign({}, o, { hasB: !!o.b });
   const slides = [
     pair({
@@ -1096,10 +1098,12 @@ export default function Main() {
               </div>
               <span className="hxl">4.9/5</span>
               <p className="sub">Điểm đánh giá của shop trên Shopee.</p>
-              <a href="#" className="btn btn-ink">
-                Xem gian hàng Shopee
-                <Icon name="arrowRight" />
-              </a>
+              {shop.shopeeUrl ? (
+                <a href={shop.shopeeUrl} target="_blank" rel="noreferrer" className="btn btn-ink">
+                  Xem gian hàng Shopee
+                  <Icon name="arrowRight" />
+                </a>
+              ) : null}
             </div>
             <div style={{ flex: '1 1 340px', display: 'flex', flexDirection: 'column' }}>
               <div

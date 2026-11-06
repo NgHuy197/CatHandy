@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import SiteHeader from '../components/SiteHeader';
 import Chibi from '../components/Chibi';
@@ -11,6 +12,7 @@ import { useAuth } from '../lib/auth';
 import { CATEGORY_LABELS, toCard } from '../lib/products';
 import { toggleWish, useWishlist } from '../lib/wishlist';
 import { formatDate } from '../../shared/format';
+import { setPageMeta } from '../lib/pageMeta';
 
 const thumbStyle = (on, bg) => ({
   aspectRatio: '1 / 1',
@@ -37,7 +39,7 @@ function Stars({ value }) {
 export default function Product() {
   const { slug } = useParams();
   const navigate = useNavigate();
-  const { data, error, setData } = useApi('/products/' + slug);
+  const { data, error, reload } = useApi('/products/' + slug);
   const { user } = useAuth();
   const wish = useWishlist();
   const [state, setState] = useMergedState({
@@ -52,6 +54,11 @@ export default function Product() {
     reviewBusy: false,
     reviewError: '',
   });
+
+  useEffect(() => {
+    if (data) setPageMeta(data.title, data.description || data.sub);
+    else if (error) setPageMeta('Không tìm thấy sản phẩm');
+  }, [data, error]);
 
   if (!data) {
     return (
@@ -133,19 +140,13 @@ export default function Product() {
       e.preventDefault();
       setState({ reviewBusy: true, reviewError: '' });
       try {
-        const review = await api('/products/' + p.slug + '/reviews', {
+        await api('/products/' + p.slug + '/reviews', {
           method: 'POST',
           body: { rating: st.rating, body: st.body, photos: st.photos.map((ph) => ph.key) },
         });
-        setData((d) => ({
-          ...d,
-          reviews: [review, ...d.reviews],
-          rating: {
-            count: d.rating.count + 1,
-            avg: Math.round(((d.rating.avg * d.rating.count + review.rating) / (d.rating.count + 1)) * 10) / 10,
-          },
-        }));
-        setState({ reviewBusy: false, body: '', photos: [], rating: 5 });
+        // A second review replaces the first, so reload rather than add to the list.
+        await reload();
+        setState({ reviewBusy: false, body: '', photos: [], rating: 5, reviewError: '' });
       } catch (err) {
         setState({ reviewBusy: false, reviewError: err.message });
       }
@@ -543,7 +544,7 @@ export default function Product() {
             </form>
           ) : (
             <p className="bsm mut">
-              Đã mua sản phẩm này?{' '}
+              Đã nhận sản phẩm này?{' '}
               <Link to={'/dang-nhap?next=/san-pham/' + p.slug} className="deep" style={{ fontWeight: '500', textDecoration: 'underline' }}>
                 Đăng nhập để đánh giá
               </Link>

@@ -1,4 +1,4 @@
-import { and, eq, gt } from 'drizzle-orm';
+import { and, eq, gt, lt } from 'drizzle-orm';
 import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { createMiddleware } from 'hono/factory';
 import { sessions, users } from '../../db/schema';
@@ -38,9 +38,12 @@ export async function verifyPassword(password, stored) {
 
 export async function startSession(c, userId) {
   const token = b64(crypto.getRandomValues(new Uint8Array(32))).replace(/[+/=]/g, (ch) => ({ '+': '-', '/': '_', '=': '' })[ch]);
-  await getDb(c)
-    .insert(sessions)
-    .values({ id: await sha256(token), userId, expiresAt: Date.now() + SESSION_DAYS * 86400e3 });
+  const db = getDb(c);
+  // Each sign-in also clears sessions that have expired, so the table does not grow forever.
+  await db.batch([
+    db.delete(sessions).where(lt(sessions.expiresAt, Date.now())),
+    db.insert(sessions).values({ id: await sha256(token), userId, expiresAt: Date.now() + SESSION_DAYS * 86400e3 }),
+  ]);
   setCookie(c, COOKIE, token, { httpOnly: true, secure: true, sameSite: 'Lax', path: '/', maxAge: SESSION_DAYS * 86400 });
 }
 
@@ -79,7 +82,7 @@ export const requireAdmin = createMiddleware(async (c, next) => {
   await next();
 });
 
-// Emails listed in ADMIN_EMAILS (comma separated) become admins when they sign in.
+// Emails listed in ADMIN_EMAILS (comma separated) become admins when they sign in with Google.
 export const isAdminEmail = (env, email) =>
   String(env.ADMIN_EMAILS || '')
     .split(',')

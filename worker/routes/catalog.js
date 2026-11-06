@@ -4,6 +4,7 @@ import { orderItems, orders, products, reviews, users } from '../../db/schema';
 import { mediaUrl } from '../../shared/format';
 import { currentUser, requireUser } from '../lib/auth';
 import { loadConfig } from '../lib/customizer';
+import { limitUploads } from '../lib/limits';
 import { fail, getDb, int, readJson, str } from '../lib/util';
 
 const catalog = new Hono();
@@ -52,8 +53,9 @@ catalog.get('/products/:slug', async (c) => {
   });
 });
 
-// Reviews come only from accounts that have ordered the product.
-catalog.post('/products/:slug/reviews', requireUser, async (c) => {
+// Reviews come only from accounts whose order of the product has been handed to the courier.
+// Writing again replaces the earlier review, so one customer counts once in the rating.
+catalog.post('/products/:slug/reviews', requireUser, limitUploads, async (c) => {
   const db = getDb(c);
   const user = await currentUser(c);
   const [p] = await db.select({ id: products.id }).from(products).where(eq(products.slug, c.req.param('slug')));
@@ -62,9 +64,11 @@ catalog.post('/products/:slug/reviews', requireUser, async (c) => {
     .select({ id: orderItems.id })
     .from(orderItems)
     .innerJoin(orders, eq(orders.id, orderItems.orderId))
-    .where(and(eq(orders.userId, user.id), eq(orderItems.productSlug, c.req.param('slug'))))
+    .where(
+      and(eq(orders.userId, user.id), eq(orders.status, 'shipped'), eq(orderItems.productSlug, c.req.param('slug'))),
+    )
     .limit(1);
-  if (!bought) fail(403, 'Bạn đánh giá được sau khi đã đặt mua sản phẩm này.');
+  if (!bought) fail(403, 'Bạn đánh giá được khi đơn có sản phẩm này đã được giao.');
 
   const body = await readJson(c);
   const rating = int(body.rating);
@@ -73,11 +77,16 @@ catalog.post('/products/:slug/reviews', requireUser, async (c) => {
     .map((k) => str(k, 200))
     .filter((k) => k.startsWith('uploads/'))
     .slice(0, 6);
+  const fields = { rating, body: str(body.body, 2000), photos };
   const [review] = await db
     .insert(reviews)
-    .values({ productId: p.id, userId: user.id, rating, body: str(body.body, 2000), photos })
+    .values({ productId: p.id, userId: user.id, ...fields })
+    .onConflictDoUpdate({
+      target: [reviews.userId, reviews.productId],
+      set: { ...fields, createdAt: sql`CURRENT_TIMESTAMP` },
+    })
     .returning();
-  return c.json({ ...review, name: user.name, photoUrls: photos.map(mediaUrl) }, 201);
+  return c.json({ ...review, name: user.name, photoUrls: photos.map(mediaUrl) });
 });
 
 catalog.get('/customizer', async (c) => c.json(await loadConfig(getDb(c))));

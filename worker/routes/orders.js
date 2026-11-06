@@ -6,6 +6,7 @@ import { layersFor, quoteDesign } from '../../shared/customizer';
 import { normalizePhone } from '../../shared/format';
 import { currentUser } from '../lib/auth';
 import { loadConfig } from '../lib/customizer';
+import { limitLookup, limitOrders } from '../lib/limits';
 import { adminOrderUrl, newOrderMessage, notifyShop } from '../lib/notify';
 import { newOrderCode, ORDER_CODE, withDetails } from '../lib/orders';
 import { fail, getDb, int, readJson, str } from '../lib/util';
@@ -75,7 +76,7 @@ function customLine(config, it) {
   };
 }
 
-orders.post('/', bodyLimit({ maxSize: 128 * 1024 }), async (c) => {
+orders.post('/', limitOrders, bodyLimit({ maxSize: 128 * 1024 }), async (c) => {
   const body = await readJson(c);
   const customer = body.customer || {};
   const customerName = str(customer.name, 100);
@@ -110,12 +111,11 @@ orders.post('/', bodyLimit({ maxSize: 128 * 1024 }), async (c) => {
     total: lines.reduce((s, l) => s + l.unitPrice * l.qty, 0),
   };
   // One batch is one D1 transaction: the order and its items are saved together or not at all.
-  await db.batch([
-    db.insert(ordersTable).values(order),
-    db
-      .insert(orderItems)
-      .values(lines.map((l) => ({ ...l, orderId: sql`(SELECT id FROM orders WHERE code = ${order.code})` }))),
-  ]);
+  // D1 allows 100 bound parameters per statement and each item row binds 9, so items go in groups of 10.
+  const rows = lines.map((l) => ({ ...l, orderId: sql`(SELECT id FROM orders WHERE code = ${order.code})` }));
+  const itemInserts = [];
+  for (let i = 0; i < rows.length; i += 10) itemInserts.push(db.insert(orderItems).values(rows.slice(i, i + 10)));
+  await db.batch([db.insert(ordersTable).values(order), ...itemInserts]);
 
   // First order from an account fills its default delivery details, so the next checkout is prefilled.
   if (user && !user.phone && !user.address) {
@@ -142,37 +142,50 @@ const PUBLIC_FIELDS = {
 };
 
 // Public tracking by order code or phone number. Never returns the customer's name, phone or address.
-orders.get('/track', async (c) => {
+// A phone lookup shows progress but only a masked code: approving photos takes the full code and the phone together,
+// so someone who merely knows a phone number cannot act on that customer's order.
+orders.get('/track', limitLookup, async (c) => {
   const q = str(c.req.query('q'), 40).toUpperCase();
   const db = getDb(c);
+  const byCode = ORDER_CODE.test(q);
   let where;
-  if (ORDER_CODE.test(q)) where = eq(ordersTable.code, q);
+  if (byCode) where = eq(ordersTable.code, q);
   else if (normalizePhone(q).replace('+', '').length >= 9) where = eq(ordersTable.phone, normalizePhone(q));
   else fail(400, 'Bạn nhập số điện thoại đầy đủ hoặc mã đơn dạng CH-XXXXXX nhé.');
   const rows = await db.select(PUBLIC_FIELDS).from(ordersTable).where(where).orderBy(desc(ordersTable.id)).limit(10);
-  return c.json({ orders: await withDetails(db, rows) });
+  const found = await withDetails(db, rows);
+  return c.json({
+    by: byCode ? 'code' : 'phone',
+    orders: byCode ? found : found.map((o) => ({ ...o, code: null, maskedCode: 'CH-••••' + o.code.slice(-2) })),
+  });
 });
 
-async function awaitingOrder(c) {
+// The order a customer is approving: found by code, and proven theirs by the phone it was placed with
+// (or by being signed in to the account that placed it).
+async function awaitingOrder(c, body) {
   const [order] = await getDb(c)
     .select()
     .from(ordersTable)
     .where(eq(ordersTable.code, c.req.param('code').toUpperCase()));
-  if (!order) fail(404, 'Không tìm thấy đơn hàng.');
+  const user = await currentUser(c);
+  const owns = order && ((user && order.userId === user.id) || normalizePhone(str(body.phone, 30)) === order.phone);
+  // One message for a wrong code and a wrong phone, so neither can be guessed separately.
+  if (!owns) fail(403, 'Mã đơn hoặc số điện thoại chưa khớp, bạn kiểm tra lại nhé.');
   if (order.status !== 'awaiting') fail(409, 'Đơn này hiện không chờ duyệt ảnh.');
   return order;
 }
 
-orders.post('/:code/approve', async (c) => {
-  const order = await awaitingOrder(c);
+orders.post('/:code/approve', limitLookup, async (c) => {
+  const order = await awaitingOrder(c, await readJson(c));
   await getDb(c).update(ordersTable).set({ status: 'approved' }).where(eq(ordersTable.id, order.id));
   notifyShop(c, `Khách đã duyệt ảnh đơn ${order.code}, có thể giao vận chuyển.\n${adminOrderUrl(c, order.code)}`);
   return c.json({ status: 'approved' });
 });
 
-orders.post('/:code/revision', async (c) => {
-  const order = await awaitingOrder(c);
-  const text = str((await readJson(c)).body, 1000);
+orders.post('/:code/revision', limitLookup, async (c) => {
+  const body = await readJson(c);
+  const order = await awaitingOrder(c, body);
+  const text = str(body.body, 1000);
   if (!text) fail(400, 'Bạn mô tả điều cần chỉnh giúp shop nhé.');
   const db = getDb(c);
   await db.batch([

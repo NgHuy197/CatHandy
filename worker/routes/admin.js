@@ -1,13 +1,14 @@
 import { Hono } from 'hono';
 import { and, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
 import { options, orderNotes, orderPhotos, orders, presets, products, settings, users } from '../../db/schema';
-import { normalizeChar, OPTION_GROUPS } from '../../shared/customizer';
+import { CHAR_FIELDS, normalizeChar, OPTION_GROUPS } from '../../shared/customizer';
 import { mediaUrl, normalizePhone } from '../../shared/format';
 import { ORDER_STATUSES, STATUS_CODES } from '../../shared/orders';
 import { requireAdmin } from '../lib/auth';
 import { loadConfig, optionOut } from '../lib/customizer';
 import { deleteUpload, saveUpload } from '../lib/media';
 import { withDetails } from '../lib/orders';
+import { loadShop, shopFields } from '../lib/shop';
 import { fail, getDb, int, readJson, str } from '../lib/util';
 import { productOut } from './catalog';
 
@@ -271,9 +272,34 @@ admin.delete('/options/:id', async (c) => {
   if (!current) fail(404, 'Không tìm thấy tùy chọn.');
   if (current.grp === 'gl') fail(400, 'Kính và râu không xóa được, bạn ẩn đi nếu không nhận làm.');
   if (current.grp === 'box' && (await boxCodes(db)).length <= 1) fail(400, 'Cần giữ ít nhất một loại hộp.');
+
+  // Presets and products that point at this option would break, so the admin fixes or hides them first.
+  const field = CHAR_FIELDS.find(([, grp]) => grp === current.grp)?.[0];
+  const usedBy = (await db.select({ name: presets.name, box: presets.box, chars: presets.chars }).from(presets))
+    .filter((p) => (current.grp === 'box' ? p.box === current.code : p.chars.some((ch) => ch[field] === current.code)))
+    .map((p) => 'mẫu "' + p.name + '"');
+  if (current.grp === 'box') {
+    const prods = await db.select({ title: products.title }).from(products).where(eq(products.boxCode, current.code));
+    usedBy.push(...prods.map((p) => 'sản phẩm "' + p.title + '"'));
+  }
+  if (usedBy.length) {
+    fail(409, `Đang được dùng ở ${usedBy.slice(0, 5).join(', ')}${usedBy.length > 5 ? '...' : ''}. Sửa những chỗ đó trước, hoặc ẩn tùy chọn này thay vì xóa.`);
+  }
+
   await db.delete(options).where(eq(options.id, current.id));
   await deleteUpload(c, current.layerKey);
   return c.json({ ok: true });
+});
+
+admin.get('/shop', async (c) => c.json(await loadShop(getDb(c))));
+
+admin.put('/shop', async (c) => {
+  const value = shopFields(await readJson(c));
+  await getDb(c)
+    .insert(settings)
+    .values({ key: 'shop', value })
+    .onConflictDoUpdate({ target: settings.key, set: { value } });
+  return c.json(value);
 });
 
 admin.put('/settings', async (c) => {

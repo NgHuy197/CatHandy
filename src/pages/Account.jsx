@@ -105,22 +105,23 @@ function AccountPage({ user }) {
         wash: WASH[i % WASH.length],
         a: first?.design?.a,
         b: first?.design?.b,
-        specs: custom.map((it) => `${it.title}, ${it.sub}. ${it.design.lines.join('. ')}.`),
+        // Each custom chibi in the order can be opened again in the customizer on its own.
+        specs: custom.map((it) => ({
+          text: `${it.title}, ${it.sub}. ${it.design.lines.join('. ')}.`,
+          again: () =>
+            navigate('/tao-chibi', {
+              state: {
+                design: {
+                  box: it.design.box,
+                  count: it.design.count,
+                  chars: [stripLayers(it.design.a), stripLayers(it.design.b)].filter(Boolean),
+                  note: it.design.note,
+                },
+              },
+            }),
+        })),
         ready: o.items.filter((it) => !it.isCustom).map((it) => it.title + (it.variant ? ` (${it.variant.toLowerCase()})` : '')),
         done: o.status === 'shipped',
-        again: custom[0]
-          ? () =>
-              navigate('/tao-chibi', {
-                state: {
-                  design: {
-                    box: custom[0].design.box,
-                    count: custom[0].design.count,
-                    chars: [stripLayers(custom[0].design.a), stripLayers(custom[0].design.b)].filter(Boolean),
-                    note: custom[0].design.note,
-                  },
-                },
-              })
-          : null,
       };
     }),
     wish: (wishlist.data || []).map(toCard).map((p) => ({
@@ -352,7 +353,15 @@ function AccountPage({ user }) {
                             }}
                           >
                             <span className="cap">Thông số mẫu custom đã lưu</span>
-                            <span className="bsm">{s}</span>
+                            <span className="bsm">{s.text}</span>
+                            <button
+                              type="button"
+                              className="btn btn-line"
+                              onClick={s.again}
+                              style={{ alignSelf: 'flex-start', marginTop: '8px' }}
+                            >
+                              Đặt lại mẫu này
+                            </button>
                           </div>
                         ))}
                         {o.ready.length ? <span className="bsm">Có sẵn: {o.ready.join(', ')}</span> : null}
@@ -360,11 +369,6 @@ function AccountPage({ user }) {
                           <Link to={'/tra-cuu?ma=' + o.code} className={o.done ? 'btn btn-line' : 'btn btn-ink'}>
                             {o.done ? 'Xem chi tiết' : 'Theo dõi đơn'}
                           </Link>
-                          {o.again ? (
-                            <button type="button" className="btn btn-line" onClick={o.again}>
-                              Đặt lại mẫu này
-                            </button>
-                          ) : null}
                         </div>
                       </div>
                     </article>

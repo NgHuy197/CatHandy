@@ -20,6 +20,13 @@
   ],
   // Product photos, finished-order photos, customizer layer images and review photos.
   "r2_buckets": [{ "binding": "MEDIA", "bucket_name": "cat-handy-media" }],
+  // Per-minute limits per visitor (see worker/lib/limits.js). Namespace ids only need to be unique in the account.
+  "ratelimits": [
+    { "name": "RL_ORDER", "namespace_id": "4101", "simple": { "limit": 5, "period": 60 } },
+    { "name": "RL_AUTH", "namespace_id": "4102", "simple": { "limit": 10, "period": 60 } },
+    { "name": "RL_LOOKUP", "namespace_id": "4103", "simple": { "limit": 20, "period": 60 } },
+    { "name": "RL_UPLOAD", "namespace_id": "4104", "simple": { "limit": 20, "period": 60 } }
+  ],
   // Settings (ADMIN_EMAILS, GOOGLE_CLIENT_ID, TELEGRAM_*, SITE_URL) come from .dev.vars locally and
   // `wrangler secret put` in production; see .dev.vars.example.
   "observability": { "enabled": true }
