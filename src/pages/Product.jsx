@@ -501,7 +501,9 @@ export default function Product() {
           ) : (
             <p className="bsm mut">Chưa có đánh giá nào cho sản phẩm này.</p>
           )}
-          {user ? (
+          {user && !p.canReview ? (
+            <p className="bsm mut">Bạn viết được đánh giá sau khi đơn có sản phẩm này đã được giao.</p>
+          ) : user ? (
             <form className="card" onSubmit={vals.submitReview} style={{ display: 'flex', flexDirection: 'column', gap: '16px', maxWidth: '640px' }}>
               <h3 className="hh">Viết đánh giá</h3>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }} role="group" aria-label="Số sao">

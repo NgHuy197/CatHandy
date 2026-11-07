@@ -30,6 +30,17 @@ catalog.get('/products', async (c) => {
   return c.json(rows.map((p) => productOut(p, ratings.find((r) => r.productId === p.id))));
 });
 
+// Reviews come only from accounts whose order of the product has been handed to the courier.
+async function hasReceived(db, userId, slug) {
+  const [row] = await db
+    .select({ id: orderItems.id })
+    .from(orderItems)
+    .innerJoin(orders, eq(orders.id, orderItems.orderId))
+    .where(and(eq(orders.userId, userId), eq(orders.status, 'shipped'), eq(orderItems.productSlug, slug)))
+    .limit(1);
+  return !!row;
+}
+
 catalog.get('/products/:slug', async (c) => {
   const db = getDb(c);
   const [p] = await db
@@ -37,7 +48,8 @@ catalog.get('/products/:slug', async (c) => {
     .from(products)
     .where(and(eq(products.slug, c.req.param('slug')), eq(products.hidden, false)));
   if (!p) fail(404, 'Không tìm thấy sản phẩm.');
-  const [list, [rating]] = await Promise.all([
+  const user = await currentUser(c);
+  const [list, [rating], canReview] = await Promise.all([
     db
       .select({ id: reviews.id, rating: reviews.rating, body: reviews.body, photos: reviews.photos, createdAt: reviews.createdAt, name: users.name })
       .from(reviews)
@@ -46,29 +58,24 @@ catalog.get('/products/:slug', async (c) => {
       .orderBy(desc(reviews.id))
       .limit(50),
     db.select(ratingFields).from(reviews).where(eq(reviews.productId, p.id)).groupBy(reviews.productId),
+    user ? hasReceived(db, user.id, p.slug) : false,
   ]);
   return c.json({
     ...productOut(p, rating),
     reviews: list.map((r) => ({ ...r, photoUrls: r.photos.map(mediaUrl) })),
+    // Lets the page show the form only to accounts the POST below will accept.
+    canReview,
   });
 });
 
-// Reviews come only from accounts whose order of the product has been handed to the courier.
 // Writing again replaces the earlier review, so one customer counts once in the rating.
 catalog.post('/products/:slug/reviews', requireUser, limitUploads, async (c) => {
   const db = getDb(c);
   const user = await currentUser(c);
   const [p] = await db.select({ id: products.id }).from(products).where(eq(products.slug, c.req.param('slug')));
   if (!p) fail(404, 'Không tìm thấy sản phẩm.');
-  const [bought] = await db
-    .select({ id: orderItems.id })
-    .from(orderItems)
-    .innerJoin(orders, eq(orders.id, orderItems.orderId))
-    .where(
-      and(eq(orders.userId, user.id), eq(orders.status, 'shipped'), eq(orderItems.productSlug, c.req.param('slug'))),
-    )
-    .limit(1);
-  if (!bought) fail(403, 'Bạn đánh giá được khi đơn có sản phẩm này đã được giao.');
+  if (!(await hasReceived(db, user.id, c.req.param('slug'))))
+    fail(403, 'Bạn đánh giá được khi đơn có sản phẩm này đã được giao.');
 
   const body = await readJson(c);
   const rating = int(body.rating);

@@ -129,10 +129,11 @@ export default function Track() {
         ? 'Mã đơn có trên màn hình đặt hàng thành công và trong tin nhắn shop gửi.'
         : 'Shop đối chiếu số này với đơn để chắc chắn đúng là bạn.',
     proof: st.proof,
-    onProof: (e) => setState({ proof: e.target.value }),
+    // A failed approve/revision leaves its message up; editing the proof or switching forms clears it.
+    onProof: (e) => setState({ proof: e.target.value, error: '' }),
     codeText: order ? order.code || order.maskedCode : '',
-    askEdit: () => setState({ editing: true }),
-    cancelEdit: () => setState({ editing: false }),
+    askEdit: () => setState({ editing: true, error: '' }),
+    cancelEdit: () => setState({ editing: false, error: '' }),
     sendEdit: () => act('/revision', { body: st.editText }, 'revision'),
     editText: st.editText,
     onEdit: (e) => setState({ editText: e.target.value }),
