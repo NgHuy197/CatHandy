@@ -36,6 +36,11 @@ export async function verifyPassword(password, stored) {
   return diff === 0;
 }
 
+// A temporary password the shop sends a customer over Zalo: 10 characters from 32 with no 0/o or 1/l, 50 bits.
+const TEMP_CHARS = 'abcdefghijkmnpqrstuvwxyz23456789';
+export const tempPassword = () =>
+  Array.from(crypto.getRandomValues(new Uint8Array(10)), (b) => TEMP_CHARS[b % 32]).join('');
+
 export async function startSession(c, userId) {
   const token = b64(crypto.getRandomValues(new Uint8Array(32))).replace(/[+/=]/g, (ch) => ({ '+': '-', '/': '_', '=': '' })[ch]);
   const db = getDb(c);

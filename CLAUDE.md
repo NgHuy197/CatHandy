@@ -21,7 +21,7 @@ Danh sách chức năng đầy đủ của dự án (storefront, admin, tính n�
 
 ## Trạng thái hiện tại
 
-Đã làm xong backend cho mục 1 đến 3 của spec và các trang đều gọi API, không còn dữ liệu mẫu (trừ nội dung giới thiệu tĩnh ở trang chủ). Giỏ hàng nằm trong `localStorage` (`src/lib/cart.js`) và bắt đầu rỗng. Đăng nhập bằng email/mật khẩu hoặc Google One-Tap (cần `GOOGLE_CLIENT_ID`). Thông tin liên hệ của shop do admin nhập ở `/admin/cai-dat`; mục nào để trống thì site ẩn đi. Mục "Hình thật từ những người đã nhận quà" ở trang chủ ẩn cho tới khi `CUSTOMER_PHOTOS` trong `Main.jsx` có ảnh thật; số năm hoạt động của shop chưa hiển thị vì chưa có số liệu. Chưa có: quên mật khẩu (cần dịch vụ gửi email). `database_id` trong `wrangler.jsonc` còn là placeholder cho tới khi tạo D1 thật (các bước trong `README.md`).
+Đã làm xong backend cho mục 1 đến 3 của spec và các trang đều gọi API, không còn dữ liệu mẫu (trừ nội dung giới thiệu tĩnh ở trang chủ). Giỏ hàng nằm trong `localStorage` (`src/lib/cart.js`) và bắt đầu rỗng. Đăng nhập bằng email/mật khẩu hoặc Google One-Tap (cần `GOOGLE_CLIENT_ID`). Thông tin liên hệ của shop do admin nhập ở `/admin/cai-dat`; mục nào để trống thì site ẩn đi. Mục "Hình thật từ những người đã nhận quà" ở trang chủ ẩn cho tới khi `CUSTOMER_PHOTOS` trong `Main.jsx` có ảnh thật; số năm hoạt động của shop chưa hiển thị vì chưa có số liệu. Chưa có quên mật khẩu qua email (cần dịch vụ gửi email): admin đặt lại mật khẩu tạm ở `/admin/khach-hang`, khách tự đổi ở trang tài khoản. Trang chính sách (`/chinh-sach/:slug`, danh sách trong `shared/policies.js`) và thông tin người bán ở chân trang do admin nhập ở `/admin/cai-dat`; trang nào trống thì ẩn. `SITE_URL` trong `.env.production` để build ghi `og:image` thành URL đầy đủ. `database_id` trong `wrangler.jsonc` còn là placeholder cho tới khi tạo D1 thật (các bước trong `README.md`).
 
 ## Cấu trúc
 
@@ -31,7 +31,7 @@ Danh sách chức năng đầy đủ của dự án (storefront, admin, tính n�
 - `src/lib/`: logic dùng chung phía trình duyệt. `api.js` (gọi API, hook `useApi`), `auth.js` (người đang đăng nhập), `config.js` (Google client id, thông tin liên hệ shop), `cart.js`, `wishlist.js`, `adminAlerts.js` (đếm đơn chưa xem), `products.js`, `preview.js` (xuất ảnh xem trước PNG), `pageMeta.js` (tiêu đề tab và meta description theo route).
 - `src/App.jsx` tải trình thiết kế và các trang admin theo kiểu lazy; trang mới nặng hoặc ít khách mở cũng nên lazy.
 - `src/styles/cat.css`: toàn bộ CSS.
-- `shared/`: code dùng chung cho cả trình duyệt và Worker. `customizer.js` (tính giá, mô tả nhân vật, ảnh lớp), `orders.js` (danh sách trạng thái đơn), `format.js`.
+- `shared/`: code dùng chung cho cả trình duyệt và Worker. `customizer.js` (tính giá, mô tả nhân vật, ảnh lớp), `orders.js` (danh sách trạng thái đơn), `policies.js` (các trang chính sách), `format.js`.
 - `worker/index.js`: gắn các route trong `worker/routes/` (`auth`, `account`, `catalog`, `orders`, `admin`) dưới `/api`. `worker/lib/`: đăng nhập và session, upload R2, Telegram, đọc cấu hình customizer, thông tin shop (`shop.js`), giới hạn tần suất (`limits.js`).
 - `db/schema.js`: schema Drizzle. `migrations/` là SQL do drizzle-kit sinh, `db/seed.sql` là dữ liệu khởi đầu (sản phẩm, tùy chọn custom, giá, mẫu gợi ý).
 - `wrangler.jsonc`: cấu hình Worker, static assets, binding D1 (`c.env.DB`), R2 (`c.env.MEDIA`) và các bộ giới hạn tần suất (`RL_*`).
@@ -46,6 +46,7 @@ Danh sách chức năng đầy đủ của dự án (storefront, admin, tính n�
 | `/gio-hang`, `/dat-hang`, `/dat-hang/thanh-cong` | `Cart.jsx`, `Checkout.jsx`, `OrderDone.jsx` | 2.4 Đặt hàng (không tích hợp thanh toán) |
 | `/dang-nhap`, `/tai-khoan` | `Auth.jsx`, `Account.jsx` | 2.3 Tài khoản |
 | `/tra-cuu` | `Track.jsx` | 2.5 Tra cứu đơn và duyệt ảnh |
+| `/chinh-sach/:slug` | `Policy.jsx` | 2.1 Footer (chính sách bảo mật, đổi trả, vận chuyển, thanh toán) |
 | `/admin` | `AdminDashboard.jsx` | 3.5 Báo cáo |
 | `/admin/don-hang` | `AdminOrders.jsx` | 3.1, 3.4 Đơn hàng và tiến độ chế tác |
 | `/admin/tuy-chon` | `AdminCustomizer.jsx` | 3.3 Cấu hình custom và giá phụ phí |

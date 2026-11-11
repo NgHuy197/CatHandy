@@ -3,6 +3,7 @@ import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import SiteHeader from '../components/SiteHeader';
 import Chibi from '../components/Chibi';
 import SiteFooter from '../components/SiteFooter';
+import PrivacyNote from '../components/PrivacyNote';
 import Icon from '../components/Icon';
 import GoogleSignIn, { useGoogleClientId } from '../components/GoogleSignIn';
 import useMergedState from '../lib/useMergedState';
@@ -229,7 +230,7 @@ export default function Auth() {
                 </>
               ) : null}
               {vals.isLogin ? (
-                <p className="bsm mut">Quên mật khẩu? Liên hệ shop theo thông tin ở cuối trang để được hỗ trợ.</p>
+                <p className="bsm mut">Quên mật khẩu? Nhắn shop qua Zalo theo thông tin ở cuối trang, shop sẽ gửi bạn mật khẩu tạm.</p>
               ) : null}
               {st.error ? (
                 <p
@@ -239,6 +240,11 @@ export default function Auth() {
                 >
                   {st.error}
                 </p>
+              ) : null}
+              {!vals.isLogin ? (
+                <PrivacyNote>
+                  Khi tạo tài khoản, bạn đồng ý để shop lưu họ tên và email của bạn để quản lý tài khoản và đơn hàng.
+                </PrivacyNote>
               ) : null}
               <button type="submit" className="btn btn-ink btn-lg" disabled={st.busy}>
                 {vals.submitLabel}

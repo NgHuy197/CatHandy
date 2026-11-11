@@ -1,9 +1,23 @@
-import { eq } from 'drizzle-orm';
+import { eq, like } from 'drizzle-orm';
 import { settings } from '../../db/schema';
 import { normalizePhone } from '../../shared/format';
+import { POLICIES, POLICY_MAX } from '../../shared/policies';
 import { fail, str } from './util';
 
-export const EMPTY_SHOP = { phone: '', email: '', zaloUrl: '', messengerUrl: '', shopeeUrl: '', facebookUrl: '' };
+// ownerName, businessId and address are the seller details a Vietnamese shop site shows in its footer;
+// bctUrl is the confirmation link online.gov.vn gives once the site is registered with the Ministry of Industry and Trade.
+export const EMPTY_SHOP = {
+  phone: '',
+  email: '',
+  zaloUrl: '',
+  messengerUrl: '',
+  shopeeUrl: '',
+  facebookUrl: '',
+  ownerName: '',
+  businessId: '',
+  address: '',
+  bctUrl: '',
+};
 
 // The shop's public contact details, as the admin entered them in /admin/cai-dat.
 export async function loadShop(db) {
@@ -30,5 +44,44 @@ export function shopFields(body) {
     messengerUrl: httpsUrl(body.messengerUrl, 'Link Messenger'),
     shopeeUrl: httpsUrl(body.shopeeUrl, 'Link Shopee'),
     facebookUrl: httpsUrl(body.facebookUrl, 'Link Fanpage'),
+    ownerName: str(body.ownerName, 200),
+    businessId: str(body.businessId, 100),
+    address: str(body.address, 300),
+    bctUrl: httpsUrl(body.bctUrl, 'Link thông báo Bộ Công Thương'),
   };
+}
+
+const policyKey = (key) => 'policy:' + key;
+
+// Slugs of the policy pages that have text, so the footer and checkout link only to pages that exist.
+export async function filledPolicies(db) {
+  const rows = await db.select({ key: settings.key }).from(settings).where(like(settings.key, 'policy:%'));
+  const keys = new Set(rows.map((r) => r.key));
+  return POLICIES.filter((p) => keys.has(policyKey(p.key))).map((p) => p.slug);
+}
+
+export async function loadPolicy(db, key) {
+  const [row] = await db.select().from(settings).where(eq(settings.key, policyKey(key)));
+  return typeof row?.value === 'string' ? row.value : '';
+}
+
+export async function loadPolicies(db) {
+  const texts = await Promise.all(POLICIES.map((p) => loadPolicy(db, p.key)));
+  return Object.fromEntries(POLICIES.map((p, i) => [p.key, texts[i]]));
+}
+
+// Saves every policy in one batch: text is upserted, an emptied page loses its row and disappears from the site.
+export async function savePolicies(db, body) {
+  const value = Object.fromEntries(POLICIES.map((p) => [p.key, str(body[p.key], POLICY_MAX)]));
+  await db.batch(
+    POLICIES.map((p) =>
+      value[p.key]
+        ? db
+            .insert(settings)
+            .values({ key: policyKey(p.key), value: value[p.key] })
+            .onConflictDoUpdate({ target: settings.key, set: { value: value[p.key] } })
+        : db.delete(settings).where(eq(settings.key, policyKey(p.key))),
+    ),
+  );
+  return value;
 }

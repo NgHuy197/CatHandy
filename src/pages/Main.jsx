@@ -12,6 +12,11 @@ import { useApi } from '../lib/api';
 import { toCard } from '../lib/products';
 import { useShop } from '../lib/config';
 
+// The background video is decoration: visitors who asked for less data or less motion get its still frame instead.
+const HERO_VIDEO = !(
+  navigator.connection?.saveData || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+);
+
 const PITCH = 196;
 const HALF = 706;
 const FRAME = 1440;
@@ -418,16 +423,24 @@ export default function Main() {
   return (
     <div className="cat" style={{ overflowX: 'clip' }}>
       <section className="hero">
-        <video
-          className="hero-bg"
-          src="/videos/hero-bg.mp4"
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="auto"
-          aria-hidden="true"
-        />
+        {HERO_VIDEO ? (
+          <video
+            className="hero-bg"
+            poster="/videos/hero-poster.webp"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="auto"
+            aria-hidden="true"
+          >
+            {/* Phones get a 540p copy (about 340 KB) instead of the 1080p one (about 1.1 MB). */}
+            <source src="/videos/hero-bg-mobile.mp4" type="video/mp4" media="(max-width: 768px)" />
+            <source src="/videos/hero-bg.mp4" type="video/mp4" />
+          </video>
+        ) : (
+          <img className="hero-bg" src="/videos/hero-poster.webp" alt="" />
+        )}
         <div className="hero-bg-veil" />
         <div style={{ position: 'absolute', top: '0', left: '0', right: '0', zIndex: '40' }}>
           <SiteHeader active="home" clear={vals.yes} />

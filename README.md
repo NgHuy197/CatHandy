@@ -28,18 +28,20 @@ npm run dev
 npx wrangler d1 execute cat-handy --local --command "UPDATE users SET role = 'admin' WHERE email = 'you@example.com'"
 ```
 
-After signing in, fill in the shop's phone, email, Zalo, Messenger, Shopee and Fanpage at `/admin/cai-dat`. Until then the footer, chat buttons and tracking page leave those out.
+After signing in, fill in the shop's phone, email, Zalo, Messenger, Shopee and Fanpage at `/admin/cai-dat`. Until then the footer, chat buttons and tracking page leave those out. The same page holds the seller details shown in the footer (owner, tax or business registration number, address, the online.gov.vn confirmation link) and the policy pages under `/chinh-sach/<slug>` (privacy, returns, shipping, payment). "Chèn bản mẫu" fills a policy with a draft to complete; a policy left empty is hidden.
+
+There is no "forgot password" email. A customer who forgets theirs asks the shop, and the admin presses "Đặt lại mật khẩu" in `/admin/khach-hang` to get a one-time temporary password to send over Zalo; the customer then changes it under Tài khoản, Hồ sơ.
 
 ## What the API covers
 
 | Area | Routes |
 |---|---|
-| Accounts | `POST /api/auth/register`, `/login`, `/google`, `/logout`, `GET /api/auth/me`, `PATCH /api/account`, `GET /api/account/orders`, wishlist under `/api/account/wishlist` |
+| Accounts | `POST /api/auth/register`, `/login`, `/google`, `/logout`, `GET /api/auth/me`, `PATCH /api/account`, `POST /api/account/password`, `GET /api/account/orders`, wishlist under `/api/account/wishlist` |
 | Catalog | `GET /api/products`, `GET /api/products/:slug` (with reviews), `POST /api/products/:slug/reviews` (buyers only), `GET /api/customizer` |
 | Orders | `POST /api/orders`, `GET /api/orders/track?q=` (code or phone; a phone lookup masks the codes), `POST /api/orders/:code/approve` and `/revision` (body carries the order's phone) |
-| Admin | `/api/admin/orders` (status, notes, finished photos), `/api/admin/customers`, `/api/admin/options`, `/api/admin/settings`, `/api/admin/presets`, `/api/admin/products`, `/api/admin/reports`, `/api/admin/uploads`, `/api/admin/shop` |
+| Admin | `/api/admin/orders` (status, notes, finished photos), `/api/admin/customers` (with password reset), `/api/admin/policies`, `/api/admin/options`, `/api/admin/settings`, `/api/admin/presets`, `/api/admin/products`, `/api/admin/reports`, `/api/admin/uploads`, `/api/admin/shop` |
 | Files | `POST /api/uploads` (review photos), `GET /api/media/<key>` (anything stored in R2, with Range support for video) |
-| Settings | `GET /api/config` (Google client id and the shop's contact details) |
+| Settings | `GET /api/config` (Google client id, the shop's contact details, filled policy pages), `GET /api/policies/:slug` |
 
 Placing orders, signing in, tracking and uploading are rate limited per visitor (the `ratelimits` bindings in `wrangler.jsonc`, used from `worker/lib/limits.js`).
 
@@ -70,6 +72,12 @@ Paste the printed `database_id` into `wrangler.jsonc`. Set the settings from `.d
 
 ```bash
 npx wrangler secret put GOOGLE_CLIENT_ID
+```
+
+Put the site's public address in `.env.production` so link previews on Zalo and Facebook get an absolute image URL (the build warns when it is missing):
+
+```bash
+echo SITE_URL=https://your-domain > .env.production
 ```
 
 Then:

@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import SiteHeader from '../components/SiteHeader';
 import Chibi from '../components/Chibi';
 import SiteFooter from '../components/SiteFooter';
+import PrivacyNote from '../components/PrivacyNote';
 import Icon from '../components/Icon';
 import useMergedState from '../lib/useMergedState';
 import { cartTotal, placeOrder, useCart } from '../lib/cart';
@@ -235,6 +236,10 @@ export default function Checkout() {
                 {st.error}
               </p>
             ) : null}
+            <PrivacyNote>
+              Khi gửi đơn, bạn đồng ý để shop dùng họ tên, số điện thoại và địa chỉ bạn nhập để liên hệ chốt đơn, làm và
+              giao quà.
+            </PrivacyNote>
             <div
               style={{
                 display: 'flex',

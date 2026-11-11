@@ -5,13 +5,55 @@ import Icon from '../components/Icon';
 import useMergedState from '../lib/useMergedState';
 import css from '../lib/css';
 import reveal from '../lib/reveal';
-import { useApi } from '../lib/api';
+import { api, useApi } from '../lib/api';
 import { formatPrice } from '../lib/chibi';
 import { formatDate } from '../../shared/format';
 import { statusInfo } from '../../shared/orders';
 
 const WASH = ['#fddede', '#d3efe9', '#fbeab4', '#e8e0f8'];
 const initial = (s) => (s || '?').trim().split(/\s+/).pop().charAt(0).toUpperCase();
+
+// The site has no "forgot password" email, so the shop resets it here and sends the temporary password over Zalo.
+function ResetPassword({ customer }) {
+  const [st, setState] = useMergedState({ busy: false, password: '', error: '' });
+  const reset = async () => {
+    if (!window.confirm(`Đặt lại mật khẩu cho ${customer.name || customer.email}? Khách sẽ bị đăng xuất khỏi mọi thiết bị.`)) return;
+    setState({ busy: true, error: '' });
+    try {
+      const { password } = await api(`/admin/customers/${encodeURIComponent(customer.key)}/password`, { method: 'POST' });
+      setState({ busy: false, password });
+    } catch (err) {
+      setState({ busy: false, error: err.message });
+    }
+  };
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <hr className="hr" />
+      {st.password ? (
+        <div style={{ background: '#f6efe6', borderRadius: '12px', padding: '12px 16px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+          <span className="cap">Mật khẩu tạm (chỉ hiện một lần)</span>
+          <code className="hh" style={{ userSelect: 'all', letterSpacing: '1px' }}>
+            {st.password}
+          </code>
+          <span className="cap">
+            Gửi cho khách qua Zalo. Khách đăng nhập bằng {customer.email} rồi đổi mật khẩu ở Tài khoản, mục Hồ sơ.
+          </span>
+        </div>
+      ) : (
+        <div>
+          <button type="button" className="btn btn-line" onClick={reset} disabled={st.busy}>
+            {st.busy ? 'Đang đặt lại...' : 'Đặt lại mật khẩu'}
+          </button>
+        </div>
+      )}
+      {st.error ? (
+        <p className="bsm" role="alert" style={{ color: 'var(--danger)' }}>
+          {st.error}
+        </p>
+      ) : null}
+    </div>
+  );
+}
 
 export default function AdminCustomers() {
   const detailRef = useRef(null);
@@ -258,6 +300,7 @@ export default function AdminCustomers() {
                         </a>
                       </div>
                     ) : null}
+                    {cur.registered && cur.hasPassword ? <ResetPassword key={cur.key} customer={cur} /> : null}
                   </div>
                   <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <h3 className="hh">Lịch sử mua hàng</h3>

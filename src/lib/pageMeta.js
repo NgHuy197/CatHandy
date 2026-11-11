@@ -8,6 +8,7 @@ const DEFAULT_DESC = 'Quà tặng chibi handmade: hộp gỗ, hộp mica, quà c
 const PAGES = [
   ['/admin', 'Quản trị'],
   ['/san-pham/', null],
+  ['/chinh-sach/', null],
   ['/san-pham', 'Sản phẩm', 'Hộp gỗ chibi, hộp mica, quà cưới và phụ kiện làm sẵn hoặc đặt làm theo ý bạn.'],
   ['/tao-chibi', 'Tự tay tạo chibi', 'Chọn hộp, tóc, trang phục và phụ kiện, xem hình và giá đổi ngay khi bạn chọn.'],
   ['/gio-hang', 'Giỏ hàng'],

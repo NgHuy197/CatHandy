@@ -1,6 +1,6 @@
 import { Link } from 'react-router-dom';
 import Icon from './Icon';
-import { useShop } from '../lib/config';
+import { useFilledPolicies, useShop } from '../lib/config';
 
 const ext = { target: '_blank', rel: 'noreferrer' };
 
@@ -8,6 +8,13 @@ export default function SiteFooter() {
   // Contact details the admin entered in /admin/cai-dat; anything not filled in is left out.
   const shop = useShop();
   const hasChat = !!(shop.zaloUrl || shop.messengerUrl);
+  const policies = useFilledPolicies();
+  // The seller's legal name, registration number and address, for whichever the admin filled in.
+  const seller = [
+    shop.ownerName,
+    shop.businessId ? 'MST/ĐKKD: ' + shop.businessId : '',
+    shop.address ? 'Địa chỉ: ' + shop.address : '',
+  ].filter(Boolean);
   return (
     <footer className="cat site-footer" style={{ background: '#f6efe6' }}>
       <div
@@ -63,6 +70,11 @@ export default function SiteFooter() {
           <Link to="/tai-khoan" className="bsm">
             Tài khoản của bạn
           </Link>
+          {policies.map((p) => (
+            <Link key={p.slug} to={'/chinh-sach/' + p.slug} className="bsm">
+              {p.title}
+            </Link>
+          ))}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <span className="lbl">Liên hệ</span>
@@ -95,9 +107,19 @@ export default function SiteFooter() {
       </div>
       <div className="wrap" style={{ marginTop: '48px' }}>
         <hr className="hr" />
-        <p className="cap" style={{ paddingTop: '24px' }}>
+        {seller.length ? (
+          <p className="cap" style={{ paddingTop: '24px' }}>
+            {seller.join(' · ')}
+          </p>
+        ) : null}
+        <p className="cap" style={{ paddingTop: seller.length ? '8px' : '24px' }}>
           © 2026 Cat Handy. Quà handmade, làm bằng tay và bằng cả tấm lòng.
         </p>
+        {shop.bctUrl ? (
+          <a href={shop.bctUrl} {...ext} className="cap deep" style={{ display: 'inline-block', paddingTop: '8px' }}>
+            Đã thông báo Bộ Công Thương
+          </a>
+        ) : null}
       </div>
       {hasChat ? (
         <div

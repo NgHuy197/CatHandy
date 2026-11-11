@@ -1,14 +1,14 @@
 import { Hono } from 'hono';
 import { and, desc, eq, inArray, isNull, like, or, sql } from 'drizzle-orm';
-import { options, orderNotes, orderPhotos, orders, presets, products, settings, users } from '../../db/schema';
+import { options, orderNotes, orderPhotos, orders, presets, products, sessions, settings, users } from '../../db/schema';
 import { CHAR_FIELDS, normalizeChar, OPTION_GROUPS } from '../../shared/customizer';
 import { mediaUrl, normalizePhone } from '../../shared/format';
 import { ORDER_STATUSES, STATUS_CODES } from '../../shared/orders';
-import { requireAdmin } from '../lib/auth';
+import { hashPassword, requireAdmin, tempPassword } from '../lib/auth';
 import { loadConfig, optionOut } from '../lib/customizer';
 import { deleteUpload, saveUpload } from '../lib/media';
 import { withDetails } from '../lib/orders';
-import { loadShop, shopFields } from '../lib/shop';
+import { loadPolicies, loadShop, savePolicies, shopFields } from '../lib/shop';
 import { fail, getDb, int, readJson, str } from '../lib/util';
 import { productOut } from './catalog';
 
@@ -181,7 +181,16 @@ admin.get('/customers/:key', async (c) => {
   if (key.startsWith('u')) {
     const [u] = await db.select().from(users).where(eq(users.id, int(key.slice(1))));
     if (!u) fail(404, 'Không tìm thấy khách hàng.');
-    profile = { key, name: u.name, email: u.email, phone: u.phone, address: u.address, registered: true, since: u.createdAt };
+    profile = {
+      key,
+      name: u.name,
+      email: u.email,
+      phone: u.phone,
+      address: u.address,
+      registered: true,
+      hasPassword: !!u.passwordHash,
+      since: u.createdAt,
+    };
     where = eq(orders.userId, u.id);
   } else {
     const phone = normalizePhone(key.slice(1));
@@ -197,6 +206,22 @@ admin.get('/customers/:key', async (c) => {
   if (!rows.length && !profile.registered) fail(404, 'Không tìm thấy khách hàng.');
   if (!profile.registered) Object.assign(profile, { name: rows[0].customerName, address: rows[0].address, since: rows.at(-1).createdAt });
   return c.json({ ...profile, orders: await withDetails(db, rows) });
+});
+
+// There is no email service for "forgot password", so the shop resets it: the admin gets a one-time temporary password
+// to send the customer over Zalo, and every session of that account is signed out. Admin accounts are left alone.
+admin.post('/customers/:key/password', async (c) => {
+  const key = c.req.param('key');
+  const db = getDb(c);
+  const [u] = key.startsWith('u') ? await db.select().from(users).where(eq(users.id, int(key.slice(1)))) : [];
+  if (!u || u.role !== 'customer') fail(404, 'Không tìm thấy tài khoản khách hàng.');
+  if (!u.passwordHash) fail(409, 'Khách này đăng nhập bằng Google, không có mật khẩu để đặt lại.');
+  const password = tempPassword();
+  await db.batch([
+    db.update(users).set({ passwordHash: await hashPassword(password) }).where(eq(users.id, u.id)),
+    db.delete(sessions).where(eq(sessions.userId, u.id)),
+  ]);
+  return c.json({ password });
 });
 
 // ---------- Customizer options, prices, presets ----------
@@ -301,6 +326,10 @@ admin.put('/shop', async (c) => {
     .onConflictDoUpdate({ target: settings.key, set: { value } });
   return c.json(value);
 });
+
+admin.get('/policies', async (c) => c.json(await loadPolicies(getDb(c))));
+
+admin.put('/policies', async (c) => c.json(await savePolicies(getDb(c), await readJson(c))));
 
 admin.put('/settings', async (c) => {
   const body = await readJson(c);

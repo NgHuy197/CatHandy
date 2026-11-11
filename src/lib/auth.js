@@ -37,3 +37,6 @@ export const loginWithGoogle = (credential) => api('/auth/google', { method: 'PO
 export const logout = () => api('/auth/logout', { method: 'POST' }).then(() => set(null));
 
 export const updateProfile = (patch) => api('/account', { method: 'PATCH', body: patch }).then(signedIn);
+
+export const changePassword = (current, password) =>
+  api('/account/password', { method: 'POST', body: { current, password } }).then(signedIn);

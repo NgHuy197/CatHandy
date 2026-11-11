@@ -8,7 +8,7 @@ import css from '../lib/css';
 import { formatPrice } from '../lib/chibi';
 import { addReadyItem } from '../lib/cart';
 import { useApi } from '../lib/api';
-import { logout, updateProfile, useAuth } from '../lib/auth';
+import { changePassword, logout, updateProfile, useAuth } from '../lib/auth';
 import { toCard } from '../lib/products';
 import { toggleWish } from '../lib/wishlist';
 import { statusInfo } from '../../shared/orders';
@@ -37,6 +37,66 @@ export default function Account() {
   }
   if (!user) return <Navigate to="/dang-nhap?next=/tai-khoan" replace />;
   return <AccountPage user={user} />;
+}
+
+// Change the password, or set a first one on an account made with Google. Other devices are signed out.
+function PasswordForm({ user }) {
+  const [st, setState] = useMergedState({ current: '', next: '', next2: '', busy: false, msg: '', error: '' });
+  const field = (key) => ({ value: st[key], onChange: (e) => setState({ [key]: e.target.value, msg: '', error: '' }) });
+  const submit = async (e) => {
+    e.preventDefault();
+    if (st.next !== st.next2) return setState({ error: 'Hai lần nhập mật khẩu mới chưa khớp.' });
+    setState({ busy: true, msg: '', error: '' });
+    try {
+      await changePassword(st.current, st.next);
+      setState({ busy: false, current: '', next: '', next2: '', msg: 'Đã đổi mật khẩu. Các thiết bị khác đã được đăng xuất.' });
+    } catch (err) {
+      setState({ busy: false, error: err.message });
+    }
+  };
+  return (
+    <form className="card" onSubmit={submit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+        <h2 className="hh">{user.hasPassword ? 'Đổi mật khẩu' : 'Đặt mật khẩu'}</h2>
+        <p className="bsm mut">
+          {user.hasPassword
+            ? 'Nếu shop vừa gửi bạn mật khẩu tạm, hãy đổi sang mật khẩu của riêng bạn.'
+            : 'Tài khoản của bạn đăng nhập bằng Google. Đặt thêm mật khẩu nếu muốn đăng nhập bằng email.'}
+        </p>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '16px' }}>
+        {user.hasPassword ? (
+          <div className="field">
+            <label htmlFor="p1">Mật khẩu hiện tại</label>
+            <input id="p1" className="input" type="password" autoComplete="current-password" required {...field('current')} />
+          </div>
+        ) : null}
+        <div className="field">
+          <label htmlFor="p2">Mật khẩu mới</label>
+          <input id="p2" className="input" type="password" autoComplete="new-password" minLength={8} required {...field('next')} />
+        </div>
+        <div className="field">
+          <label htmlFor="p3">Nhập lại mật khẩu mới</label>
+          <input id="p3" className="input" type="password" autoComplete="new-password" minLength={8} required {...field('next2')} />
+        </div>
+      </div>
+      {st.error ? (
+        <p className="bsm" role="alert" style={{ background: 'var(--danger-wash)', color: 'var(--danger)', borderRadius: '12px', padding: '12px 16px' }}>
+          {st.error}
+        </p>
+      ) : null}
+      <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+        <button type="submit" className="btn btn-ink" disabled={st.busy}>
+          {st.busy ? 'Đang lưu...' : user.hasPassword ? 'Đổi mật khẩu' : 'Đặt mật khẩu'}
+        </button>
+        {st.msg ? (
+          <span className="bsm mut" role="status">
+            {st.msg}
+          </span>
+        ) : null}
+      </div>
+    </form>
+  );
 }
 
 function AccountPage({ user }) {
@@ -267,6 +327,7 @@ function AccountPage({ user }) {
                     ) : null}
                   </div>
                 </form>
+                <PasswordForm user={user} />
               </>
             ) : null}
             {vals.isOrders ? (

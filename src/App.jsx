@@ -20,6 +20,7 @@ const AdminCustomizer = lazy(() => import('./pages/AdminCustomizer'));
 const AdminCustomers = lazy(() => import('./pages/AdminCustomers'));
 const AdminProducts = lazy(() => import('./pages/AdminProducts'));
 const AdminSettings = lazy(() => import('./pages/AdminSettings'));
+const Policy = lazy(() => import('./pages/Policy'));
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -58,6 +59,7 @@ export default function App() {
           <Route path="/dang-nhap" element={<Auth />} />
           <Route path="/tai-khoan" element={<Account />} />
           <Route path="/tra-cuu" element={<Track />} />
+          <Route path="/chinh-sach/:slug" element={<Policy />} />
           <Route path="/admin" element={admin(<AdminDashboard />)} />
           <Route path="/admin/don-hang" element={admin(<AdminOrders />)} />
           <Route path="/admin/tuy-chon" element={admin(<AdminCustomizer />)} />

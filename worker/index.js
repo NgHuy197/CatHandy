@@ -4,7 +4,8 @@ import { HTTPException } from 'hono/http-exception';
 import { mediaUrl } from '../shared/format';
 import { requireUser } from './lib/auth';
 import { saveUpload } from './lib/media';
-import { loadShop } from './lib/shop';
+import { filledPolicies, loadPolicy, loadShop } from './lib/shop';
+import { policyBySlug } from '../shared/policies';
 import { limitUploads } from './lib/limits';
 import { getDb } from './lib/util';
 import account from './routes/account';
@@ -22,9 +23,18 @@ app.use(csrf());
 app.get('/health', (c) => c.json({ ok: true }));
 
 // Public settings the browser needs before anyone signs in.
-app.get('/config', async (c) =>
-  c.json({ googleClientId: c.env.GOOGLE_CLIENT_ID || null, shop: await loadShop(getDb(c)) }),
-);
+app.get('/config', async (c) => {
+  const db = getDb(c);
+  const [shop, policies] = await Promise.all([loadShop(db), filledPolicies(db)]);
+  return c.json({ googleClientId: c.env.GOOGLE_CLIENT_ID || null, shop, policies });
+});
+
+app.get('/policies/:slug', async (c) => {
+  const policy = policyBySlug(c.req.param('slug'));
+  const body = policy ? await loadPolicy(getDb(c), policy.key) : '';
+  if (!body) return c.json({ error: 'Trang này chưa có nội dung.' }, 404);
+  return c.json({ title: policy.title, body });
+});
 
 app.route('/auth', auth);
 app.route('/account', account);

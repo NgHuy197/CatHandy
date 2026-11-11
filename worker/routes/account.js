@@ -1,8 +1,9 @@
 import { Hono } from 'hono';
 import { and, desc, eq } from 'drizzle-orm';
-import { orders, products, users, wishlist } from '../../db/schema';
+import { orders, products, sessions, users, wishlist } from '../../db/schema';
 import { normalizePhone } from '../../shared/format';
-import { currentUser, publicUser, requireUser } from '../lib/auth';
+import { currentUser, hashPassword, publicUser, requireUser, startSession, verifyPassword } from '../lib/auth';
+import { limitAuth } from '../lib/limits';
 import { withDetails } from '../lib/orders';
 import { fail, getDb, readJson, str } from '../lib/util';
 import { productOut } from './catalog';
@@ -20,6 +21,24 @@ account.patch('/', async (c) => {
   if (patch.name === '') fail(400, 'Họ tên không được để trống.');
   const [updated] = await getDb(c).update(users).set(patch).where(eq(users.id, user.id)).returning();
   return c.json({ user: publicUser(updated) });
+});
+
+// Changing the password signs out every other device, then starts a fresh session here.
+// An account made with Google has no password yet and may set one without the current one.
+account.post('/password', limitAuth, async (c) => {
+  const user = await currentUser(c);
+  const body = await readJson(c);
+  const current = typeof body.current === 'string' ? body.current : '';
+  const password = typeof body.password === 'string' ? body.password : '';
+  if (user.passwordHash && !(await verifyPassword(current, user.passwordHash))) fail(400, 'Mật khẩu hiện tại chưa đúng.');
+  if (password.length < 8 || password.length > 200) fail(400, 'Mật khẩu mới cần ít nhất 8 ký tự.');
+  const db = getDb(c);
+  await db.batch([
+    db.update(users).set({ passwordHash: await hashPassword(password) }).where(eq(users.id, user.id)),
+    db.delete(sessions).where(eq(sessions.userId, user.id)),
+  ]);
+  await startSession(c, user.id);
+  return c.json({ user: publicUser({ ...user, passwordHash: 'set' }) });
 });
 
 account.get('/orders', async (c) => {
