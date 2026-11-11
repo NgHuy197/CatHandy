@@ -1,4 +1,5 @@
-import { Link, useNavigate } from 'react-router-dom';
+import { useEffect } from 'react';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import SiteHeader from '../components/SiteHeader';
 import Chibi from '../components/Chibi';
 import SiteFooter from '../components/SiteFooter';
@@ -10,16 +11,33 @@ import { useApi } from '../lib/api';
 import { toCard } from '../lib/products';
 import { toggleWish, useWishlist } from '../lib/wishlist';
 
+// "ao dai" finds "Áo dài": many shoppers type without Vietnamese accents.
+const fold = (s) =>
+  s
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd');
+
+const CAT_CODES = ['go', 'mica', 'cuoi', 'nam', 'phukien'];
+
 export default function Catalog() {
+  // Links elsewhere on the site open a category (?loai=mica) or ready-made items only (?tinh-trang=co-san).
+  const [params] = useSearchParams();
+  const urlCat = CAT_CODES.includes(params.get('loai')) ? params.get('loai') : 'all';
+  const urlStock = params.get('tinh-trang') === 'co-san' ? 'ready' : 'all';
   const [state, setState] = useMergedState({
     q: '',
-    cat: 'all',
+    cat: urlCat,
     mat: 'all',
     price: 'all',
-    stock: 'all',
+    stock: urlStock,
     sort: 'featured',
     showFilters: false,
   });
+  useEffect(() => {
+    setState({ cat: urlCat, stock: urlStock });
+  }, [urlCat, urlStock, setState]);
   const navigate = useNavigate();
   const { data, error, loading } = useApi('/products');
   const wish = useWishlist();
@@ -58,11 +76,11 @@ export default function Catalog() {
       cls: st[key] === o[0] ? 'chip on' : 'chip',
       pick: () => setState({ [key]: o[0] }),
     }));
-  const q = st.q.trim().toLowerCase();
+  const q = fold(st.q.trim());
   const shown = all
     .filter(
       (p) =>
-        (!q || p.title.toLowerCase().indexOf(q) >= 0) &&
+        (!q || fold(p.title + ' ' + p.sub).includes(q)) &&
         (st.cat === 'all' || p.cat === st.cat) &&
         (st.mat === 'all' || p.mat === st.mat) &&
         (st.price === 'all' ||
@@ -139,7 +157,7 @@ export default function Catalog() {
                   id="q"
                   className="input"
                   style={{ paddingLeft: '44px' }}
-                  placeholder="Tên sản phẩm"
+                  placeholder="Tên sản phẩm hoặc chất liệu"
                   value={vals.q}
                   onChange={vals.onQ}
                 />

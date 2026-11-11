@@ -43,16 +43,16 @@ export default function SiteFooter() {
           <Link to="/tao-chibi" className="bsm">
             Tự tay tạo chibi
           </Link>
-          <Link to="/san-pham" className="bsm">
+          <Link to="/san-pham?loai=go" className="bsm">
             Hộp gỗ chibi
           </Link>
-          <Link to="/san-pham" className="bsm">
+          <Link to="/san-pham?loai=mica" className="bsm">
             Hộp mica chibi
           </Link>
-          <Link to="/san-pham" className="bsm">
+          <Link to="/san-pham?loai=cuoi" className="bsm">
             Quà cưới cao cấp
           </Link>
-          <Link to="/san-pham" className="bsm">
+          <Link to="/san-pham?tinh-trang=co-san" className="bsm">
             Set quà có sẵn
           </Link>
         </div>

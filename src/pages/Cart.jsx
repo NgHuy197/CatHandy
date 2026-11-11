@@ -4,10 +4,11 @@ import Chibi from '../components/Chibi';
 import SiteFooter from '../components/SiteFooter';
 import Icon from '../components/Icon';
 import { chibi, formatPrice } from '../lib/chibi';
-import { cartCount, cartTotal, removeItem, setQty, useCart } from '../lib/cart';
+import { cartCount, cartTotal, removeItem, repricedBox, setQty, useCart, useFreshPrices } from '../lib/cart';
 
 export default function Cart() {
   const { items: cart } = useCart();
+  const repriced = useFreshPrices();
   const items = cart.map((it) => ({
     ...it,
     kind: it.isCustom ? 'Chibi tự thiết kế' : 'Có sẵn',
@@ -137,6 +138,7 @@ export default function Cart() {
                             </ul>
                             <Link
                               to="/tao-chibi"
+                              state={{ design: it.design, editId: it.id }}
                               className="bsm deep"
                               style={{ fontWeight: '500', textDecoration: 'underline' }}
                             >
@@ -244,6 +246,11 @@ export default function Cart() {
             }}
           >
             <h2 className="hh">Tóm tắt đơn</h2>
+            {repriced ? (
+              <p className="bsm" role="status" style={repricedBox}>
+                Shop vừa cập nhật giá một số món, tạm tính dưới đây đã theo giá mới.
+              </p>
+            ) : null}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', gap: '12px' }}>
                 <span className="bsm mut">Tạm tính ({vals.count} món)</span>

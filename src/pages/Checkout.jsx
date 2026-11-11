@@ -6,7 +6,7 @@ import SiteFooter from '../components/SiteFooter';
 import PrivacyNote from '../components/PrivacyNote';
 import Icon from '../components/Icon';
 import useMergedState from '../lib/useMergedState';
-import { cartTotal, placeOrder, useCart } from '../lib/cart';
+import { cartTotal, placeOrder, repricedBox, useCart, useFreshPrices } from '../lib/cart';
 import { useAuth } from '../lib/auth';
 import { formatPrice } from '../lib/chibi';
 
@@ -30,6 +30,7 @@ export default function Checkout() {
 
   const navigate = useNavigate();
   const { items: cart } = useCart();
+  const repriced = useFreshPrices();
   const st = state;
   const m = st.member;
   const vals = {
@@ -188,6 +189,7 @@ export default function Checkout() {
                   <label htmlFor="phone">Số điện thoại hoặc Zalo</label>
                   <input
                     id="phone"
+                    type="tel"
                     className="input"
                     autoComplete="tel"
                     required
@@ -274,6 +276,11 @@ export default function Checkout() {
             }}
           >
             <h2 className="hh">Đơn của bạn</h2>
+            {repriced ? (
+              <p className="bsm" role="status" style={repricedBox}>
+                Shop vừa cập nhật giá một số món, tạm tính dưới đây đã theo giá mới.
+              </p>
+            ) : null}
             {cart.map((it) => (
               <div key={it.id} style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
                 <div

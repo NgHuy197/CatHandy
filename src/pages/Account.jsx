@@ -161,7 +161,7 @@ function AccountPage({ user }) {
         code: o.code,
         status: status.short,
         tagCls: status.tag,
-        meta: `Đặt ngày ${formatDate(o.createdAt)},${o.items.reduce((s, it) => s + it.qty, 0)} món, ${formatPrice(o.total)}`,
+        meta: `Đặt ngày ${formatDate(o.createdAt)}, ${o.items.reduce((s, it) => s + it.qty, 0)} món, ${formatPrice(o.total)}`,
         wash: WASH[i % WASH.length],
         a: first?.design?.a,
         b: first?.design?.b,
@@ -297,6 +297,7 @@ function AccountPage({ user }) {
                       <label htmlFor="a3">Số điện thoại hoặc Zalo</label>
                       <input
                         id="a3"
+                        type="tel"
                         className="input"
                         autoComplete="tel"
                         value={vals.phone}

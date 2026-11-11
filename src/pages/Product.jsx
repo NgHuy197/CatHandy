@@ -25,6 +25,7 @@ const thumbStyle = (on, bg) => ({
 });
 const fill = { width: '100%', height: '100%', objectFit: 'cover', display: 'block' };
 const errorBox = { background: 'var(--danger-wash)', color: 'var(--danger)', borderRadius: '12px', padding: '12px 16px' };
+const okBox = { background: 'var(--wash-mint)', color: 'var(--success)', borderRadius: '12px', padding: '12px 16px' };
 
 function Stars({ value }) {
   return (
@@ -53,6 +54,7 @@ export default function Product() {
     photos: [],
     reviewBusy: false,
     reviewError: '',
+    reviewDone: false,
   });
 
   useEffect(() => {
@@ -138,7 +140,7 @@ export default function Product() {
     ratingText: p.rating.count ? `${p.rating.avg.toString().replace('.', ',')}/5 từ ${p.rating.count} đánh giá` : 'Chưa có đánh giá trên web',
     submitReview: async (e) => {
       e.preventDefault();
-      setState({ reviewBusy: true, reviewError: '' });
+      setState({ reviewBusy: true, reviewError: '', reviewDone: false });
       try {
         await api('/products/' + p.slug + '/reviews', {
           method: 'POST',
@@ -146,7 +148,7 @@ export default function Product() {
         });
         // A second review replaces the first, so reload rather than add to the list.
         await reload();
-        setState({ reviewBusy: false, body: '', photos: [], rating: 5, reviewError: '' });
+        setState({ reviewBusy: false, body: '', photos: [], rating: 5, reviewError: '', reviewDone: true });
       } catch (err) {
         setState({ reviewBusy: false, reviewError: err.message });
       }
@@ -157,7 +159,7 @@ export default function Product() {
       if (!file) return;
       try {
         const up = await upload('/uploads', file);
-        setState({ photos: [...st.photos, up].slice(0, 6), reviewError: '' });
+        setState({ photos: [...st.photos, up].slice(0, 6), reviewError: '', reviewDone: false });
       } catch (err) {
         setState({ reviewError: err.message });
       }
@@ -178,7 +180,7 @@ export default function Product() {
         >
           <Link to="/san-pham">Sản phẩm</Link>
           <span aria-hidden="true">/</span>
-          <Link to="/san-pham">{CATEGORY_LABELS[p.category] || 'Sản phẩm'}</Link>
+          <Link to={'/san-pham?loai=' + p.category}>{CATEGORY_LABELS[p.category] || 'Sản phẩm'}</Link>
           <span aria-hidden="true">/</span>
           <span style={{ color: '#2a1f2d' }}>{p.title}</span>
         </nav>
@@ -513,7 +515,7 @@ export default function Product() {
                     type="button"
                     className={st.rating === n ? 'chip on' : 'chip'}
                     aria-pressed={st.rating === n}
-                    onClick={() => setState({ rating: n })}
+                    onClick={() => setState({ rating: n, reviewDone: false })}
                   >
                     {n} sao
                   </button>
@@ -521,7 +523,7 @@ export default function Product() {
               </div>
               <div className="field">
                 <label htmlFor="rv">Cảm nhận của bạn</label>
-                <textarea id="rv" className="input" rows="3" value={st.body} onChange={(e) => setState({ body: e.target.value })} />
+                <textarea id="rv" className="input" rows="3" value={st.body} onChange={(e) => setState({ body: e.target.value, reviewDone: false })} />
               </div>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
                 {st.photos.map((ph) => (
@@ -538,6 +540,11 @@ export default function Product() {
               {st.reviewError ? (
                 <p className="bsm" role="alert" style={errorBox}>
                   {st.reviewError}
+                </p>
+              ) : null}
+              {st.reviewDone ? (
+                <p className="bsm" role="status" style={okBox}>
+                  Cảm ơn bạn, đánh giá đã được đăng ở trên. Nếu gửi lại, đánh giá mới sẽ thay đánh giá cũ.
                 </p>
               ) : null}
               <button type="submit" className="btn btn-ink" style={{ alignSelf: 'flex-start' }} disabled={st.reviewBusy}>

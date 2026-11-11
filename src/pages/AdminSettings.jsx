@@ -21,6 +21,8 @@ const SELLER_FIELDS = [
   ['address', 'Địa chỉ kinh doanh', 'Số nhà, đường, phường, quận, tỉnh hoặc thành phố', 'text'],
   ['bctUrl', 'Link xác nhận đã thông báo Bộ Công Thương', 'https://online.gov.vn/...', 'url'],
 ];
+// The "[...]" blanks in the drafts, which must not reach the public page unfilled.
+const BLANKS = [...new Set(Object.values(POLICY_TEMPLATES).flatMap((t) => t.match(/\[[^\]\n]+\]/g) || []))];
 const errorBox = { background: 'var(--danger-wash)', color: 'var(--danger)', borderRadius: '12px', padding: '12px 16px' };
 const grid = { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(280px, 100%), 1fr))', gap: '16px' };
 const formStyle = { display: 'flex', flexDirection: 'column', gap: '20px', maxWidth: '720px' };
@@ -39,7 +41,7 @@ function useSave(path) {
       setState({ busy: false, error: err.message });
     }
   };
-  return { ...state, save, clear: () => setState({ saved: '' }) };
+  return { ...state, save, clear: () => setState({ saved: '' }), fail: (error) => setState({ error, saved: '' }) };
 }
 
 function SaveRow({ s, label }) {
@@ -159,6 +161,14 @@ export default function AdminSettings() {
             className="card"
             onSubmit={(e) => {
               e.preventDefault();
+              const left = POLICIES.flatMap((p) => {
+                const found = BLANKS.filter((b) => (st.texts[p.key] || '').includes(b));
+                return found.length ? [`${p.title}: ${found.join(', ')}`] : [];
+              });
+              if (left.length) {
+                policySave.fail(`Còn chỗ trong ngoặc vuông chưa điền, bạn thay bằng thông tin thật rồi lưu nhé. ${left.join('. ')}.`);
+                return;
+              }
               policySave.save(st.texts, (value) => setState({ texts: value, published: value }));
             }}
             style={formStyle}
@@ -167,7 +177,7 @@ export default function AdminSettings() {
               <h2 className="hh">Trang chính sách</h2>
               <p className="bsm mut">
                 Trang nào có nội dung sẽ hiện link ở chân trang, trang để trống được ẩn. Dòng trống để tách đoạn, dòng
-                bắt đầu bằng &quot;## &quot; là tiêu đề. Bản mẫu có sẵn các chỗ [trong ngoặc vuông] để shop điền; nên
+                bắt đầu bằng &quot;## &quot; là tiêu đề, dòng bắt đầu bằng &quot;- &quot; là gạch đầu dòng. Bản mẫu có sẵn các chỗ [trong ngoặc vuông] để shop điền; nên
                 nhờ người am hiểu pháp luật xem lại trước khi đăng.
               </p>
             </div>

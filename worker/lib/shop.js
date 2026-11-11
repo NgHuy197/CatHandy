@@ -36,7 +36,7 @@ export function shopFields(body) {
   if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) fail(400, 'Email chưa đúng định dạng.');
   // A bare phone number for Zalo becomes its zalo.me link.
   const zalo = str(body.zaloUrl, 300);
-  const zaloUrl = /^[\d\s.+-]+$/.test(zalo) ? 'https://zalo.me/' + normalizePhone(zalo).replace(/^\+84/, '0') : httpsUrl(zalo, 'Link Zalo');
+  const zaloUrl = /^[\d\s.+-]+$/.test(zalo) ? 'https://zalo.me/' + normalizePhone(zalo) : httpsUrl(zalo, 'Link Zalo');
   return {
     phone: normalizePhone(str(body.phone, 30)),
     email,

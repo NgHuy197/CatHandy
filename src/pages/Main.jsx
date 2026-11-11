@@ -900,7 +900,7 @@ export default function Main() {
           </div>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
             <Link
-              to="/san-pham"
+              to="/san-pham?loai=go"
               style={{
                 flex: '1 1 360px',
                 minHeight: '480px',
@@ -931,7 +931,7 @@ export default function Main() {
             </Link>
             <div style={{ flex: '1 1 360px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
               <Link
-                to="/san-pham"
+                to="/san-pham?loai=mica"
                 style={{
                   minHeight: '190px',
                   position: 'relative',
@@ -960,7 +960,7 @@ export default function Main() {
               </Link>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '24px' }}>
                 <Link
-                  to="/san-pham"
+                  to="/san-pham?loai=cuoi"
                   style={{
                     flex: '1 1 160px',
                     minHeight: '190px',
@@ -977,7 +977,7 @@ export default function Main() {
                   <Icon name="arrowRight" />
                 </Link>
                 <Link
-                  to="/san-pham"
+                  to="/san-pham?loai=nam"
                   style={{
                     flex: '1 1 160px',
                     minHeight: '190px',
@@ -995,7 +995,7 @@ export default function Main() {
                 </Link>
               </div>
               <Link
-                to="/san-pham"
+                to="/san-pham?loai=phukien"
                 style={{
                   borderRadius: '999px',
                   background: '#d3efe9',
@@ -1029,7 +1029,7 @@ export default function Main() {
               <span className="lbl">Có sẵn</span>
               <h2 className="hlg">Set quà làm sẵn cho bạn</h2>
             </div>
-            <Link to="/san-pham" className="btn btn-line">
+            <Link to="/san-pham?tinh-trang=co-san" className="btn btn-line">
               Xem tất cả
             </Link>
           </div>

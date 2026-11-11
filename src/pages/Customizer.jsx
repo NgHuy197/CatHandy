@@ -44,9 +44,12 @@ const STAGE_PANEL = {
 
 export default function Customizer() {
   const [params] = useSearchParams();
-  // A design to start from: "Đặt lại" in the account page passes one in the navigation state.
-  const again = useLocation().state?.design;
+  // A design to start from: "Đặt lại" in the account page passes one in the navigation state, and
+  // "Chỉnh sửa thiết kế" in the cart also passes the cart item it replaces (editId).
+  const nav = useLocation().state;
+  const again = nav?.design;
   const [state, setState] = useMergedState({
+    editing: nav?.editId || null,
     step: 1,
     box: again?.box || params.get('hop') || 'wood',
     count: again?.count || 2,
@@ -158,7 +161,7 @@ export default function Customizer() {
   const stepDefs = ['Sản phẩm nền', 'Khuôn mặt và tóc', 'Trang phục', 'Ghi chú và xem lại'];
   const addCart = () => {
     if (st.added || quote.error) return;
-    addCustomItem({
+    const id = addCustomItem({
       title: box.label,
       sub: st.count + ' nhân vật',
       price: quote.total,
@@ -168,8 +171,9 @@ export default function Customizer() {
       lines: quote.descriptions,
       note: st.note,
       design: { box: box.code, count: st.count, chars: active, note: st.note },
-    });
-    setState({ added: true });
+    }, st.editing);
+    // While editing, later saves keep replacing the same cart item.
+    setState({ added: true, editing: st.editing ? id : null });
   };
   const vals = {
     stepper: stepDefs.map((label, i) => {
@@ -637,7 +641,7 @@ export default function Customizer() {
                   <>
                     <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                       <button type="button" className="btn btn-line btn-lg" onClick={vals.addCart}>
-                        Thêm vào giỏ hàng
+                        {st.editing ? 'Cập nhật giỏ hàng' : 'Thêm vào giỏ hàng'}
                       </button>
                       <Link to="/dat-hang" className="btn btn-ink btn-lg" onClick={vals.addCart}>
                         Đặt hàng ngay
@@ -663,7 +667,7 @@ export default function Customizer() {
                     style={{ alignSelf: 'flex-start', padding: '8px 16px', fontSize: '14px', gap: '8px' }}
                   >
                     <Icon name="check" />
-                    Đã thêm chibi vào giỏ hàng.{' '}
+                    {st.editing ? 'Đã cập nhật thiết kế trong giỏ hàng.' : 'Đã thêm chibi vào giỏ hàng.'}{' '}
                     <Link to="/gio-hang" style={{ textDecoration: 'underline' }}>
                       Xem giỏ hàng
                     </Link>

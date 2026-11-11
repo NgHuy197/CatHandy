@@ -9,6 +9,7 @@ import OrderDone from './pages/OrderDone';
 import Auth from './pages/Auth';
 import Account from './pages/Account';
 import Track from './pages/Track';
+import NotFound from './pages/NotFound';
 import RequireAdmin from './components/RequireAdmin';
 import usePageMeta from './lib/pageMeta';
 
@@ -66,6 +67,7 @@ export default function App() {
           <Route path="/admin/khach-hang" element={admin(<AdminCustomers />)} />
           <Route path="/admin/san-pham" element={admin(<AdminProducts />)} />
           <Route path="/admin/cai-dat" element={admin(<AdminSettings />)} />
+          <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>
     </>

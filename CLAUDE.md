@@ -58,7 +58,7 @@ Danh sách chức năng đầy đủ của dự án (storefront, admin, tính n�
 
 - Không tích hợp cổng thanh toán: shop liên hệ khách qua Zalo hoặc điện thoại để chốt đơn và hướng dẫn thanh toán.
 - Giá trong trình thiết kế là giá nền theo loại hộp cộng phụ phí từng tùy chọn, lấy từ bảng `options` và `settings` do admin sửa ở `/admin/tuy-chon`. Mọi phép tính giá custom đi qua `quoteDesign` trong `shared/customizer.js`; đừng thêm hằng số giá ở nơi khác.
-- Server không tin giá client gửi lên: món có sẵn lấy giá từ bảng `products` (theo cỡ nếu có), chibi tự thiết kế được tính lại bằng `quoteDesign` với cấu hình hiện tại.
+- Server không tin giá client gửi lên: món có sẵn lấy giá từ bảng `products` (theo cỡ nếu có), chibi tự thiết kế được tính lại bằng `quoteDesign` với cấu hình hiện tại. Giá lưu trong giỏ chỉ để hiển thị; trang giỏ hàng và đặt hàng hỏi lại giá qua `POST /api/orders/quote` (dùng chung code tính giá với lúc đặt đơn) để khách thấy giá mới khi admin đổi giá.
 - Mã đơn là chuỗi ngẫu nhiên (`CH-XXXXXX`), không tăng dần, và API tra cứu công khai không trả về tên, số điện thoại hay địa chỉ của khách.
 - Tra cứu bằng SĐT chỉ trả mã đơn bị che. Duyệt hoặc yêu cầu chỉnh ảnh cần cả mã đơn lẫn SĐT khớp nhau (hoặc đang đăng nhập đúng tài khoản đặt đơn), để người chỉ biết SĐT không thao tác thay khách được.
 - Mỗi route admin trong Worker đều qua `requireAdmin`; `RequireAdmin` phía React chỉ để điều hướng, không thay cho kiểm tra ở server.

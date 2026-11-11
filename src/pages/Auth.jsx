@@ -8,6 +8,7 @@ import Icon from '../components/Icon';
 import GoogleSignIn, { useGoogleClientId } from '../components/GoogleSignIn';
 import useMergedState from '../lib/useMergedState';
 import { login, register, useAuth } from '../lib/auth';
+import { useShop } from '../lib/config';
 
 export default function Auth() {
   const [params] = useSearchParams();
@@ -31,6 +32,18 @@ export default function Auth() {
     [navigate, next],
   );
   const googleError = useCallback((err) => setState({ error: err.message }), [setState]);
+  // Password resets go through the shop, so the hint only shows when the admin has entered a way to reach it.
+  const shop = useShop();
+  const newTab = { target: '_blank', rel: 'noreferrer' };
+  const contact = shop.zaloUrl
+    ? { href: shop.zaloUrl, attrs: newTab, label: 'Zalo' }
+    : shop.messengerUrl
+      ? { href: shop.messengerUrl, attrs: newTab, label: 'Messenger' }
+      : shop.phone
+        ? { href: 'tel:' + shop.phone, label: 'Zalo hoặc điện thoại ' + shop.phone }
+        : shop.email
+          ? { href: 'mailto:' + shop.email, label: 'email ' + shop.email }
+          : null;
 
   const st = state;
   const l = st.tab === 'login';
@@ -229,8 +242,14 @@ export default function Auth() {
                   </div>
                 </>
               ) : null}
-              {vals.isLogin ? (
-                <p className="bsm mut">Quên mật khẩu? Nhắn shop qua Zalo theo thông tin ở cuối trang, shop sẽ gửi bạn mật khẩu tạm.</p>
+              {vals.isLogin && contact ? (
+                <p className="bsm mut">
+                  Quên mật khẩu? Nhắn shop qua{' '}
+                  <a href={contact.href} {...contact.attrs} className="deep" style={{ fontWeight: '500', textDecoration: 'underline' }}>
+                    {contact.label}
+                  </a>
+                  , shop sẽ gửi bạn mật khẩu tạm.
+                </p>
               ) : null}
               {st.error ? (
                 <p

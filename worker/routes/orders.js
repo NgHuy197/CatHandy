@@ -1,5 +1,6 @@
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
+import { HTTPException } from 'hono/http-exception';
 import { and, desc, eq, inArray, sql } from 'drizzle-orm';
 import { orderItems, orderNotes, orders as ordersTable, products, users } from '../../db/schema';
 import { layersFor, quoteDesign } from '../../shared/customizer';
@@ -76,6 +77,37 @@ function customLine(config, it) {
   };
 }
 
+// Loads what these cart items are priced from (the customizer config, the visible products among them)
+// and returns the function that turns one item into its order line, throwing when it cannot be ordered.
+async function pricing(db, items) {
+  const slugs = items.filter((it) => !it.isCustom).map((it) => str(it.slug, 100));
+  const [config, catalog] = await Promise.all([
+    items.some((it) => it.isCustom) ? loadConfig(db) : null,
+    slugs.length
+      ? db.select().from(products).where(and(inArray(products.slug, slugs), eq(products.hidden, false)))
+      : [],
+  ]);
+  return (it) => (it.isCustom ? customLine(config, it) : readyLine(catalog, it));
+}
+
+// Today's unit price of each cart item, in the order sent, so the cart and checkout show what the order will cost
+// after the admin changes a price. An item that can no longer be ordered gets the error placing the order would give.
+orders.post('/quote', bodyLimit({ maxSize: 128 * 1024 }), async (c) => {
+  const body = await readJson(c);
+  const items = (Array.isArray(body.items) ? body.items : []).slice(0, 20);
+  const lineOf = await pricing(getDb(c), items);
+  return c.json({
+    items: items.map((it) => {
+      try {
+        return { price: lineOf(it).unitPrice };
+      } catch (err) {
+        if (err instanceof HTTPException) return { error: err.message };
+        throw err;
+      }
+    }),
+  });
+});
+
 orders.post('/', limitOrders, bodyLimit({ maxSize: 128 * 1024 }), async (c) => {
   const body = await readJson(c);
   const customer = body.customer || {};
@@ -92,14 +124,8 @@ orders.post('/', limitOrders, bodyLimit({ maxSize: 128 * 1024 }), async (c) => {
   // An admin placing an order is usually entering one for a customer, so it is filed as a guest order by phone.
   const signedIn = await currentUser(c);
   const user = signedIn?.role === 'admin' ? null : signedIn;
-  const slugs = items.filter((it) => !it.isCustom).map((it) => str(it.slug, 100));
-  const [config, catalog] = await Promise.all([
-    items.some((it) => it.isCustom) ? loadConfig(db) : null,
-    slugs.length
-      ? db.select().from(products).where(and(inArray(products.slug, slugs), eq(products.hidden, false)))
-      : [],
-  ]);
-  const lines = items.map((it) => (it.isCustom ? customLine(config, it) : readyLine(catalog, it)));
+  const lineOf = await pricing(db, items);
+  const lines = items.map((it) => lineOf(it));
 
   const order = {
     code: newOrderCode(),

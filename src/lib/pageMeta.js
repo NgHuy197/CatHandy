@@ -30,12 +30,12 @@ export function setPageMeta(title, description = DEFAULT_DESC) {
   tag.content = description;
 }
 
-// Sets the generic title on every navigation; pages with their own (a product) set it again once loaded.
+// Sets the generic title on every navigation; pages with their own (a product, the 404 page) set it themselves.
 export default function usePageMeta() {
   const { pathname } = useLocation();
   useEffect(() => {
     const page = pathname === '/' ? null : PAGES.find(([prefix]) => pathname.startsWith(prefix));
-    if (page && page[1] === null) return;
+    if (pathname !== '/' && (!page || page[1] === null)) return;
     setPageMeta(page?.[1], page?.[2]);
   }, [pathname]);
 }

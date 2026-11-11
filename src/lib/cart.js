@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useEffect, useState, useSyncExternalStore } from 'react';
 import { api } from './api';
 
 const KEY = 'cat-handy-cart';
@@ -51,10 +51,12 @@ export function addReadyItem({ slug, title, sub, price, wash, a, b, variant, var
 }
 
 // item.design is { box, count, chars, note } as the customizer built it; the server prices it again.
-export function addCustomItem(item) {
-  const id = 'custom-' + Date.now();
-  update({ items: [...data.items, { ...item, id, isCustom: true, qty: 1 }] });
-  return id;
+// replaceId puts the design in place of that cart item (keeping its quantity) instead of adding a new one.
+export function addCustomItem(item, replaceId) {
+  const old = replaceId && data.items.find((it) => it.id === replaceId);
+  const next = { ...item, id: 'custom-' + Date.now(), isCustom: true, qty: old?.qty ?? 1 };
+  update({ items: old ? data.items.map((it) => (it === old ? next : it)) : [...data.items, next] });
+  return next.id;
 }
 
 export function setQty(id, qty) {
@@ -66,20 +68,59 @@ export function removeItem(id) {
   update({ items: data.items.filter((it) => it.id !== id) });
 }
 
+// What the order API needs to price an item; the price saved in the cart is never sent.
+const toOrderItem = (it) =>
+  it.isCustom
+    ? { isCustom: true, qty: it.qty, design: it.design, title: it.title }
+    : { slug: it.slug, variant: it.variant, qty: it.qty, title: it.title };
+
+// Prices are saved when an item goes into the cart, and the admin may change them afterwards. This asks the Worker
+// for today's prices and stores any that differ. Resolves true when one changed; if the check fails the saved
+// prices stay, since placing the order prices everything again anyway.
+export async function refreshPrices() {
+  const sent = data.items;
+  if (!sent.length) return false;
+  let body;
+  try {
+    body = await api('/orders/quote', { method: 'POST', body: { items: sent.map(toOrderItem) } });
+  } catch {
+    return false;
+  }
+  // Matched by id: the visitor may have changed quantities or removed items while the request was out.
+  const fresh = new Map(sent.map((it, i) => [it.id, body.items?.[i]?.price]));
+  let changed = false;
+  const items = data.items.map((it) => {
+    const price = fresh.get(it.id);
+    if (typeof price !== 'number' || price === it.price) return it;
+    changed = true;
+    return { ...it, price };
+  });
+  if (changed) update({ items });
+  return changed;
+}
+
+// For pages that show cart prices: refreshes them once on open. True once a price turned out to have changed.
+export function useFreshPrices() {
+  const [repriced, setRepriced] = useState(false);
+  useEffect(() => {
+    refreshPrices().then((changed) => changed && setRepriced(true));
+  }, []);
+  return repriced;
+}
+
+// Style of the note those pages show when that happens.
+export const repricedBox = { background: 'var(--wash-butter)', borderRadius: '12px', padding: '12px 16px' };
+
 // Saves the order through the Worker, which prices every item again and assigns the order code.
 // Throws with a message to show the visitor when the order is refused or the network fails.
 export async function placeOrder(customer) {
-  const items = data.items.map((it) =>
-    it.isCustom
-      ? { isCustom: true, qty: it.qty, design: it.design, title: it.title }
-      : { slug: it.slug, variant: it.variant, qty: it.qty, title: it.title },
-  );
+  const items = data.items.map(toOrderItem);
   const body = await api('/orders', { method: 'POST', body: { customer, items } });
   const lastOrder = {
     code: body.code,
     customer,
     items: body.items.map(
-      (it) => `${it.title}${it.variant ? `, ${it.variant.toLowerCase()}` : ''} (${it.isCustom ? 'chibi tự thiết kế' : 'có sẵn'})`,
+      (it) => `${it.qty} x ${it.title}${it.variant ? `, ${it.variant.toLowerCase()}` : ''} (${it.isCustom ? 'chibi tự thiết kế' : 'có sẵn'})`,
     ),
     total: body.total,
   };

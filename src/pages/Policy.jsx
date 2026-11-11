@@ -6,7 +6,35 @@ import { useApi } from '../lib/api';
 import { setPageMeta } from '../lib/pageMeta';
 import { policyBySlug } from '../../shared/policies';
 
-// The admin writes plain text: a blank line starts a new paragraph, and a line starting with "## " is a heading.
+// Splits a paragraph into text and bulleted lists: consecutive lines starting with "- " form one list.
+function textAndLists(body, key) {
+  const parts = [];
+  for (const line of body.split('\n')) {
+    const item = line.match(/^\s*-\s+(.*)/);
+    const last = parts[parts.length - 1];
+    if (item) {
+      if (last?.list) last.list.push(item[1]);
+      else parts.push({ list: [item[1]] });
+    } else if (last && !last.list) last.text += '\n' + line;
+    else parts.push({ text: line });
+  }
+  return parts.map((part, j) =>
+    part.list ? (
+      <ul key={key + j} style={{ paddingLeft: '22px', listStyle: 'disc', display: 'flex', flexDirection: 'column', gap: '6px', fontSize: '16px', lineHeight: '26px' }}>
+        {part.list.map((li, k) => (
+          <li key={k}>{li}</li>
+        ))}
+      </ul>
+    ) : (
+      <p key={key + j} style={{ whiteSpace: 'pre-line', fontSize: '16px', lineHeight: '26px' }}>
+        {part.text}
+      </p>
+    ),
+  );
+}
+
+// The admin writes plain text: a blank line starts a new paragraph, a line starting with "## " is a heading
+// and lines starting with "- " are a bulleted list.
 function blocks(text) {
   return text
     .split(/\n\s*\n/)
@@ -22,11 +50,7 @@ function blocks(text) {
             {heading}
           </h2>
         ) : null,
-        body ? (
-          <p key={i + 'p'} style={{ whiteSpace: 'pre-line', fontSize: '16px', lineHeight: '26px' }}>
-            {body}
-          </p>
-        ) : null,
+        ...(body ? textAndLists(body, i + 'p') : []),
       ];
     });
 }
